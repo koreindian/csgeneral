@@ -1,6 +1,5 @@
 'STRING_LENGTH
-'Takes a string as input, and returns its length
-'Only handles strings under 10 characters
+'Takes a string (under 256 characters) as input, and returns its length
 
 '1. INITIALIZATION
 >>+++++ +++++[>+++++ + < -]>++.
