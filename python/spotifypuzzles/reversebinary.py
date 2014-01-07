@@ -1,14 +1,13 @@
-import math
-import string
+# Vishal Vivek Prasad 2014, Spotify Lab Puzzle # 3
+import sys
 
 def bitreverse(n):
     num = list(bin(n)[2:])
-    num_len = len(num) - 1
-    for i in range(int(num / 2)):
+    num_len = len(num)
+    for i in range(int(num_len / 2)):
         tmp = num[i]
-        num[i] = num[num_len - i]
-        num[num_len - i] = tmp
-    print (num)
-        
-x = int(input('Enter an integer between 1 and 1,000,000,000\n>'))
-bitreverse(x)
+        num[i] = num[num_len - 1 - i]
+        num[num_len - 1 - i] = tmp
+    print int(''.join(num), 2)
+
+bitreverse(int(sys.argv[1]))
