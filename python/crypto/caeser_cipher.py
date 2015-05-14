@@ -1,13 +1,13 @@
 #Just a caeser cipher
 
 def main():
-    message  = "Attack at dawn       "
+    message  = input("Enter message: ")
     key = 1
     ciphertext = encrypt(message, key)
-    print ciphertext
+    print "ciphertext: ", ciphertext
 
     plaintext = decrypt(ciphertext, key)
-    print plaintext
+    print "plaintext: ", plaintext
 
 def encrypt(m, k):
     m = m.upper()
