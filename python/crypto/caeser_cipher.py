@@ -2,13 +2,14 @@
 
 def main():
     message  = input("Enter message: ")
-    key = 1
+    key = 13
     ciphertext = encrypt(message, key)
     print "ciphertext: ", ciphertext
 
     plaintext = decrypt(ciphertext, key)
     print "plaintext: ", plaintext
 
+    brute_force_decrypt(ciphertext)
 def encrypt(m, k):
     m = m.upper()
     cipher = ''
@@ -31,6 +32,10 @@ def decrypt(m, k):
             plaintext += chr((ord(char) - 65 - k) % 26 + 65)
 
     return plaintext
+
+def brute_force_decrypt(m):
+    for i in range(26):
+        print "key: ", i, "\t message: ", decrypt(m,i)
 
 if __name__ == "__main__":
     main()
