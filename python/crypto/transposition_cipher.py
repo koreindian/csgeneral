@@ -22,7 +22,23 @@ def encrypt(m, k):
 def decrypt(m, k):
     k2 = int( math.ceil( float(len(m)) / k))
     print k2
-    plaintext = encrypt(m, k2)
+    plaintext = ''
+
+    f = k - (len(m) % 4)
+    print f 
+
+    for i in range(k2):
+        j = i
+        while j < len(m):
+            plaintext += m[j]
+            if (j / k2) >= f:
+                print (j % k), f
+                j += k2 - 1
+            else:
+                j += k2
+                
+
+
     return plaintext
 
 if __name__ == "__main__":
