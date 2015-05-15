@@ -1,16 +1,42 @@
+'''
+Program: great_circle.py
+By: Vishal Prasad, 2015
+
+Calculates the distance between two location, given their addresses.
+Uses Nominatim to resolve address queries.
+ Warning: Nominatim requests may timeout.
+
+Uses great circle distance.
+'''
+
 import math
+from geopy.geocoders import Nominatim
 
 r_earth_miles = 3963.1676
 r_earth_kilometers = 6378.1
 
 def main():
-    l1 = (41.789687, -87.598201)
-    l2 = (41.8789219, -87.6217188)
+    print "great_circle.py"
+    print "Calculate the distance between any two addresses!"
+    print "Using great circle distance,"
+
+    geolocator = Nominatim()
+
+    address1 = input('Enter address 1 (Use quotation marks): ')
+    location1 = geolocator.geocode(address1, timeout=10)
+    print location1.address
+
+    address2 = input('Enter address 2 (Use quotation marks): ')
+    location2 = geolocator.geocode(address2, timeout=10)    
+    print location2.address
+
+    l1 = (location1.latitude, location1.longitude)
+    l2 = (location2.latitude, location2.longitude)
+    
 
     d = Distance(l1,l2)
     miles = d.calc_great_circle_distance(True)
     kilometers = d.calc_great_circle_distance(False)
-    #d = great_circle_distance(l1, l2)
     print "Distance (mi): ", miles
     print "Distance (km): ", kilometers
 
@@ -30,35 +56,13 @@ class Distance:
         phi_2 = math.radians(self.l2[0])
         lambda_2 = math.radians(self.l2[1])
 
-        print "lambda1: ", lambda_1, " lambda2: ", lambda_2
         d_lambda = math.fabs(lambda_1 - lambda_2)
     
-        print phi_1, phi_2, d_lambda
         m = math.sin(phi_1) * math.sin(phi_2) + math.cos(phi_1) * math.cos(phi_2) * math.cos(d_lambda)
-        print m
         d_sigma = math.acos(m)
 
         return  r * d_sigma
-    
-def great_circle_distance(l1, l2):
-    
 
-    phi_1 = math.radians(l1[0])
-    lambda_1 = math.radians(l1[1])
-    phi_2 = math.radians(l2[0])
-    lambda_2 = math.radians(l2[1])
-
-    print "lambda1: ", lambda_1, " lambda2: ", lambda_2
-    d_lambda = math.fabs(lambda_1 - lambda_2)
-    
-    print phi_1, phi_2, d_lambda
-    m = math.sin(phi_1) * math.sin(phi_2) + math.cos(phi_1) * math.cos(phi_2) * math.cos(d_lambda)
-    print m
-    d_sigma = math.acos(m)
-
-    d = r_earth_miles * d_sigma
-    
-    return d
     
 if __name__ == "__main__":
     main()
