@@ -1,8 +1,8 @@
 import math
 
 def main():
-    message = "Common sense is not so common."
-    key = 8
+    message = "Common" # "Common sense is not so common."
+    key = 5
 
     ciphertext = encrypt(message, key)
     print ciphertext
@@ -24,13 +24,15 @@ def decrypt(m, k):
     print k2
     plaintext = ''
 
-    f = k - (len(m) % 4)
+    f = k - (len(m) % k)
     print f 
 
     for i in range(k2):
         j = i
         while j < len(m):
             plaintext += m[j]
+            if len(plaintext) >= len(m):
+                break
             if (j / k2) >= f:
                 print (j % k), f
                 j += k2 - 1
