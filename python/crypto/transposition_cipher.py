@@ -1,8 +1,8 @@
 import math
 
 def main():
-    message = "Common" # "Common sense is not so common."
-    key = 5
+    message =  "Common sense is not so common."
+    key = 8
 
     ciphertext = encrypt(message, key)
     print ciphertext
@@ -12,10 +12,7 @@ def main():
 def encrypt(m, k):
     ciphertext = ''
     for i in range(k):
-        j = i
-        while j < len(m):
-            ciphertext += m[j]
-            j += k
+        ciphertext += m[i::k]
 
     return ciphertext
 
