@@ -1,6 +1,7 @@
 #import mahou
-import sys
+import sys, math, time
 import pygame
+import mahou_utils
 
 SCREEN_HEIGHT = 900
 SCREEN_WIDTH = 720
@@ -8,16 +9,7 @@ SCREEN_WIDTH = 720
 NUMBERS_SPECIAL_KEYS = { 
     pygame.K_TAB         : '\t',
     pygame.K_SPACE       : ' ' ,
-    pygame.K_EXCLAIM     : '!' ,
-    pygame.K_QUOTEDBL    : '"' ,
-    pygame.K_HASH        : '#' ,
-    pygame.K_DOLLAR      : '$' ,
-    pygame.K_AMPERSAND   : '&' ,
-    pygame.K_QUOTE       : ' ' ,
-    pygame.K_LEFTPAREN   : '(' ,
-    pygame.K_RIGHTPAREN  : ')' ,
-    pygame.K_ASTERISK    : '*' ,
-    pygame.K_PLUS        : '+' ,
+    pygame.K_QUOTE       : '\'' ,
     pygame.K_COMMA       : ',' ,
     pygame.K_MINUS       : '-' ,
     pygame.K_PERIOD      : '.' ,
@@ -32,19 +24,36 @@ NUMBERS_SPECIAL_KEYS = {
     pygame.K_7           : '7' ,
     pygame.K_8           : '8' ,
     pygame.K_9           : '9' ,
-    pygame.K_COLON       : ':' ,
     pygame.K_SEMICOLON   : ';' ,
-    pygame.K_LESS        : '<' ,
     pygame.K_EQUALS      : '=' ,
-    pygame.K_GREATER     : '>' ,
     pygame.K_QUESTION    : '?' ,
-    pygame.K_AT          : '@' ,
     pygame.K_LEFTBRACKET : '[' ,
     pygame.K_BACKSLASH   : '\\',
     pygame.K_RIGHTBRACKET: ']' ,
-    pygame.K_CARET       : '^' ,
-    pygame.K_UNDERSCORE  : '_' ,
     pygame.K_BACKQUOTE   : '`' , 
+}
+
+NUMBERS_SPECIAL_KEYS_SHIFTED = { 
+    pygame.K_1  : '!' ,
+    pygame.K_2  : '@' ,
+    pygame.K_3  : '#' ,
+    pygame.K_4  : '$' ,
+    pygame.K_5  : '%' ,
+    pygame.K_6  : '^' ,
+    pygame.K_7  : '&' ,
+    pygame.K_8  : '*' ,
+    pygame.K_9  : '(' ,
+    pygame.K_0  : ')' ,
+    pygame.K_MINUS  : '_' ,
+    pygame.K_EQUALS : '+' ,
+    pygame.K_LEFTBRACKET : '{' ,
+    pygame.K_RIGHTBRACKET: '}' ,
+    pygame.K_SEMICOLON   : ':' ,
+    pygame.K_QUOTE       : '\"' ,
+    pygame.K_COMMA       : '<' ,
+    pygame.K_PERIOD      : '>' ,
+    pygame.K_SLASH       : '?' ,
+    pygame.K_BACKSLASH   : '|',
 }
 
 ALPHABET = {
@@ -84,6 +93,8 @@ class Console():
         self.height = height
         self.width = width
 
+        self.text_line_height = 20
+
         self.open = False # If we are in console mode
         self.displayed_height = 0
         self.display_speed = 60 
@@ -93,12 +104,24 @@ class Console():
         self.current_command = ''
         self.current_command_cursor = 0
 
-        self.caps_on = False
-        self.console_font = pygame.font.SysFont('Courier', 16)
+        #Alters event.key -> character mapping. 
+        #Acts like shift-lock rather than caps-lock. Consider fixing. 
+        self.caps_on = False 
+
+        self.console_font_size = 16
+        self.console_font_color = (102, 139, 139) #PaleTurquoise4
+        self.console_font = pygame.font.SysFont('Consolas', self.console_font_size)
         self.prompt_text = ">>>"
+
         self.cursor_char = "|"
-        self.cursor_blink_cycle = 60
-        self.cursor_blink_timer = 0   
+        self.cursor_color = (0, 168, 63) #SeaGreen
+        self.cursor_blink_cycle = 60 #Number of frames for cursor to alternate displaying/not displaying
+        self.cursor_blink_timer = 0 #Counter variable to time the blink cycle
+
+        self.backspace_depressed = False
+        self.backspace_depressed_timer = 0
+        self.backspace_repeated_deletion_latency = 30 #Number of frames before repeat deletion starts
+        self.backspace_repeated_deletion_speed = 3 #Number of frames each deletion in a repeat deletion takes
  
     def update(self):
         if self.open and self.displayed_height < self.height:
@@ -107,6 +130,14 @@ class Console():
             self.displayed_height = max (0, self.displayed_height - self.display_speed)
         
         self.cursor_blink_timer = (self.cursor_blink_timer + 1) % self.cursor_blink_cycle
+
+        #For backspaces, initial input is handled during the reading of key events,
+        # but repeated deletions are handled in the update function
+        if self.backspace_depressed:
+            if self.backspace_depressed_timer >= self.backspace_repeated_deletion_latency and \
+               self.backspace_depressed_timer % self.backspace_repeated_deletion_speed == 0:
+                    self.current_command_remove_char_at_index()
+            self.backspace_depressed_timer += 1 
 
     def draw(self, surface):
         if self.displayed_height > 0:
@@ -119,22 +150,37 @@ class Console():
             surface.blit(console_rect, (0,0))
 
             #Command line 
-            cline_rect = pygame.Surface((self.width, 20))
+            cline_rect = pygame.Surface((self.width, self.text_line_height))
             cline_rect.set_alpha(200)
             cline_rect.fill(blue)
             
-            cursor_char_blinking = self.cursor_char if self.cursor_blink_timer < self.cursor_blink_cycle // 2 else ''
-            command_text = self.current_command[:self.current_command_cursor] + \
-                           cursor_char_blinking + \
-                           self.current_command[self.current_command_cursor:]
-            command_text = self.prompt_text + command_text
-            current_command_text_surface = self.console_font.render(command_text, False, (255,255,255))
+            command_text = self.prompt_text + self.current_command
+            current_command_text_surface = self.console_font.render( \
+                                               command_text, \
+                                               False, \
+                                               self.console_font_color)
+            
+            cursor_width = self.console_font.size('a')[0]
+            cursor_height = self.console_font.get_height()
+            cursor_rect = pygame.Surface((cursor_width, cursor_height))
+            cursor_rect.set_alpha(200)
+            cursor_rect.fill(self.get_cursor_color())
 
+            #Blit to surface
             surface.blit(cline_rect, (0,self.displayed_height))
             surface.blit(current_command_text_surface , (0, self.displayed_height))
-
-            
- 
+            surface.blit(cursor_rect, (cursor_width * (self.current_command_cursor + len(self.prompt_text)), \
+                                       self.displayed_height))
+            for i in range(len(self.history))[::-1]:
+                hist_command_text = self.history[i]
+                text_surface = self.console_font.render(hist_command_text, False, self.console_font_color)
+                text_height = self.height - self.text_line_height * (len(self.history) - i)
+                surface.blit(text_surface, (0,text_height))  
+              
+    def get_cursor_color(self):
+            t = (math.cos(time.time() * 2)) ** 2
+            return mahou_utils.color_lerp((255,255,255), self.cursor_color, t)
+         
     def current_command_insert_char_at_index(self, c):
         self.current_command = self.current_command[:self.current_command_cursor] + c + \
                                self.current_command[self.current_command_cursor:]
@@ -168,6 +214,7 @@ def main():
                     if event.key == pygame.K_ESCAPE:
                         console.open = not console.open
                     if event.key == pygame.K_BACKSPACE:
+                        console.backspace_depressed = True
                         console.current_command_remove_char_at_index()
                     if event.key == pygame.K_RETURN:
                         console.history.append(console.current_command)
@@ -198,7 +245,11 @@ def main():
                         else:   
                             console.current_command_insert_char_at_index(ALPHABET[event.key])
                     if event.key in NUMBERS_SPECIAL_KEYS:
-                            console.current_command_insert_char_at_index(NUMBERS_SPECIAL_KEYS[event.key])
+                            if console.caps_on:
+                                console.current_command_insert_char_at_index( \
+                                            NUMBERS_SPECIAL_KEYS_SHIFTED[event.key])
+                            else:
+                                console.current_command_insert_char_at_index(NUMBERS_SPECIAL_KEYS[event.key])
                     if event.key == pygame.K_CAPSLOCK or \
                        event.key == pygame.K_RSHIFT or \
                        event.key == pygame.K_LSHIFT:
@@ -213,11 +264,12 @@ def main():
                            event.key == pygame.K_RSHIFT or \
                            event.key == pygame.K_LSHIFT:
                             console.caps_on = not console.caps_on
-                     
-#K_RIGHT               right arrow
-#K_LEFT                left arrow
+                        if event.key == pygame.K_BACKSPACE:
+                           console.backspace_depressed = False
+                           console.backspace_depressed_timer = 0
 
-        print(console.history, console.current_command, console.current_command_cursor)
+                     
+        #print(console.history, console.current_command, console.current_command_cursor)
         console.update()
  
         screen.fill((0,0,0))
