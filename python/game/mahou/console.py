@@ -85,9 +85,9 @@ ALPHABET = {
 
 
 class Console():
-    def __init__(self):
-        self.height = mahou.screen_height // 2
-        self.width = mahou.screen_width
+    def __init__(self, game_engine):
+        self.height = game_engine.screen_height // 2
+        self.width = game_engine.screen_width
 
         self.text_line_height = 20
 
@@ -194,7 +194,7 @@ class Console():
                                    self.current_command[self.current_command_cursor:]
             self.current_command_cursor = max(0, self.current_command_cursor -1)
 
-    def process_event(self, event):
+    def process_event(self, event, game_engine):
         if not self.open:   #Redundent...
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_BACKQUOTE:
@@ -208,7 +208,7 @@ class Console():
                     self.current_command_remove_char_at_index()
                 if event.key == pygame.K_RETURN:
                     self.history.append(self.current_command)
-                    self.run_command(self.current_command)
+                    self.run_command(self.current_command, game_engine)
                     self.current_command = ''
                     self.history_index = -1
                     self.current_command_cursor = 0
@@ -259,11 +259,10 @@ class Console():
                        self.backspace_depressed_timer = 0
 
 
-    def run_command(self, s):
+    def run_command(self, s, game_engine):
         #Parse args
         s_parsed = s.split()
         cmd = s_parsed[0]
-        print(cmd)
         if cmd == 'echo':
             output = ''
             for arg in s_parsed[1:]:
@@ -272,10 +271,9 @@ class Console():
             output = output[:-1]
             self.stdout_history.append(output)
         elif cmd == 'pause':
-            mahou.paused = True
-            print("Paused")
+            game_engine.paused = True
         elif cmd == 'unpause':
-            mahou.paused = False
+            game_engine.paused = False
         elif cmd == 'quit':
             sys.exit()
         else:
@@ -286,7 +284,7 @@ class Console():
 def main():
     pygame.init()
     console = Console()
-    screen = pygame.display.set_mode((console.width, mahou.screen_height))
+    screen = pygame.display.set_mode((console.width, 2 * console.screen_height))
 
     clock = pygame.time.Clock()
     while 1:
