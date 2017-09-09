@@ -1,60 +1,69 @@
 #Game beginning
 
 import sys, os, pygame, math
+import console as cmd_console
+
 pygame.init()
 
-SCREEN_HEIGHT = 900
-SCREEN_WIDTH = 720
+screen_height = 900
+screen_width = 720
+
 
 def main():
-    size = width, height = SCREEN_WIDTH, SCREEN_HEIGHT
-    black = 0,0,0
+    paused = False
+    game_over = False
+    size = width, height = screen_width, screen_height
     screen = pygame.display.set_mode(size)
     myfont = pygame.font.SysFont('Courier',30)    
-
+    console = cmd_console.Console()
 
     magi = Magician()
     npc_magi = Enemy_Magician()
-    #sprites = pygame.sprite.RenderPlain((magi, npc_magi))
 
     clock = pygame.time.Clock()
 
     bullet_list = []
     enemies_list = [npc_magi]
     enemy_bullet_list = []
-    paused = False
-    game_over = False
+
     while 1:
         clock.tick(60)
         for event in pygame.event.get():
+            print(paused)
             if event.type == pygame.QUIT:
                 sys.exit()
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    magi.shooting = True    
-                if event.key == pygame.K_r:
-                    pass
-                    #if game_over:
-                    #    game_over = False
-                    #    magi.health = 100    
-                if event.key == pygame.K_p:
-                    paused = not paused
-                if event.key == pygame.K_UP or \
-                   event.key == pygame.K_RIGHT or \
-                   event.key == pygame.K_DOWN or \
-                   event.key == pygame.K_LEFT:
-                    magi.movement_direction = event.key
-            if event.type == pygame.KEYUP:
-                if magi.movement_direction == event.key:
-                    magi.movement_direction = None
-                if event.key == pygame.K_SPACE:
-                    magi.shooting = False 
+            if console.open:                         #Console input processing
+                console.process_event(event)
+            else:                                    #Regular game input processing
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE:
+                        magi.shooting = True    
+                    if event.key == pygame.K_r:
+                        pass
+                        #if game_over:
+                        #    game_over = False
+                        #    magi.health = 100    
+                    if event.key == pygame.K_p:
+                        paused = not paused
+                    if event.key == pygame.K_BACKQUOTE: #Enter console mode
+                        console.open = True
+                    if event.key == pygame.K_UP or \
+                       event.key == pygame.K_RIGHT or \
+                       event.key == pygame.K_DOWN or \
+                       event.key == pygame.K_LEFT:
+                        magi.movement_direction = event.key
+                if event.type == pygame.KEYUP:
+                    if magi.movement_direction == event.key:
+                        magi.movement_direction = None
+                    if event.key == pygame.K_SPACE:
+                        magi.shooting = False 
         
+        console.update()
+
         if game_over:
-            screen.fill(black)
+            screen.fill((0,0,0))
             game_over_text_surface = myfont.render('Game Over', False, (255,0,0))
-            screen.blit(game_over_text_surface, (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
-            pygame.display.flip()
+            screen.blit(game_over_text_surface, (width // 2, height // 2))
 
         elif not paused:
 
@@ -83,8 +92,6 @@ def main():
             #################################
             # Enemy update
             #################################
-            print('Enemy health: ' + str(npc_magi.health))
-
             for enemy in enemies_list:
                 enemy.update(enemy_bullet_list)
                 if enemy.health <= 0:
@@ -103,13 +110,11 @@ def main():
             #################################
             # Draw Screen
             #################################
-            screen.fill(black)
+            screen.fill((0,0,0))
             pygame.sprite.RenderPlain(magi).draw(screen)
 
             for enemy in enemies_list:
                 pygame.sprite.RenderPlain(enemy).draw(screen)
-            #sprites.draw(screen)
-    #sprites = pygame.sprite.RenderPlain((magi, npc_magi))
 
             for bullet in bullet_list:
                 screen.blit(bullet.image, bullet.rect)
@@ -119,7 +124,9 @@ def main():
              
             player_health_text_surface = myfont.render('Health: ' + str(magi.health), False, (255,0,0))
             screen.blit(player_health_text_surface, (0,0))
-            pygame.display.flip()
+
+        console.draw(screen)
+        pygame.display.flip()
 
 
 def load_image(name):
@@ -169,10 +176,10 @@ class Magician(pygame.sprite.Sprite):
                self.rect.left > 0:
                     self.rect.move_ip(-1 * movement_amount, 0)
             if self.movement_direction == pygame.K_RIGHT and \
-               self.rect.right < SCREEN_WIDTH:
+               self.rect.right < screen_width:
                     self.rect.move_ip(movement_amount, 0)
             if self.movement_direction == pygame.K_DOWN and \
-               self.rect.bottom < SCREEN_HEIGHT:
+               self.rect.bottom < screen_height:
                     self.rect.move_ip(0, movement_amount)
 
     #Returns list of bullets
@@ -207,7 +214,7 @@ class Enemy_Magician(pygame.sprite.Sprite):
         self.health = 100
 
     def update(self, enemy_bullet_list):
-        if self.rect.right >= SCREEN_WIDTH:
+        if self.rect.right >= screen_width:
             self.movement_direction = -1
         if self.rect.left <= 0:
             self.movement_direction = 1

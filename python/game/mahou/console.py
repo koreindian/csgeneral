@@ -2,9 +2,7 @@
 import sys, math, time
 import pygame
 import mahou_utils
-
-SCREEN_HEIGHT = 900
-SCREEN_WIDTH = 720
+import mahou
 
 NUMBERS_SPECIAL_KEYS = { 
     pygame.K_TAB         : '\t',
@@ -87,11 +85,9 @@ ALPHABET = {
 
 
 class Console():
-#    def __init__(height=(mahou.SCREEN_HEIGHT // 2), width=mahou.SCREEN_WIDTH):
-    def __init__(self, height=(SCREEN_HEIGHT // 2), width=SCREEN_WIDTH):
-#    def __init__(self, height=400, width=720):
-        self.height = height
-        self.width = width
+    def __init__(self):
+        self.height = mahou.screen_height // 2
+        self.width = mahou.screen_width
 
         self.text_line_height = 20
 
@@ -99,10 +95,12 @@ class Console():
         self.displayed_height = 0
         self.display_speed = 60 
 
-        self.history = []
+        self.history = [] #list of strings of all commands written in the command line
         self.history_index = -1
         self.current_command = ''
         self.current_command_cursor = 0
+
+        self.stdout_history = [] #list of command output.
 
         #Alters event.key -> character mapping. 
         #Acts like shift-lock rather than caps-lock. Consider fixing. 
@@ -171,11 +169,14 @@ class Console():
             surface.blit(current_command_text_surface , (0, self.displayed_height))
             surface.blit(cursor_rect, (cursor_width * (self.current_command_cursor + len(self.prompt_text)), \
                                        self.displayed_height))
-            for i in range(len(self.history))[::-1]:
-                hist_command_text = self.history[i]
-                text_surface = self.console_font.render(hist_command_text, False, self.console_font_color)
-                text_height = self.height - self.text_line_height * (len(self.history) - i)
-                surface.blit(text_surface, (0,text_height))  
+
+            #Draw stdout history, but only if console is fully drawn
+            if self.displayed_height == self.height:
+                for i in range(len(self.stdout_history))[::-1]:
+                    hist_output = self.stdout_history[i]
+                    text_surface = self.console_font.render(hist_output, False, self.console_font_color)
+                    text_height = self.height - self.text_line_height * (len(self.stdout_history) - i)
+                    surface.blit(text_surface, (0,text_height))  
               
     def get_cursor_color(self):
             t = (math.cos(time.time() * 2)) ** 2
@@ -193,11 +194,99 @@ class Console():
                                    self.current_command[self.current_command_cursor:]
             self.current_command_cursor = max(0, self.current_command_cursor -1)
 
+    def process_event(self, event):
+        if not self.open:   #Redundent...
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_BACKQUOTE:
+                    self.open = not self.open
+        else:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    self.open = not self.open
+                if event.key == pygame.K_BACKSPACE:
+                    self.backspace_depressed = True
+                    self.current_command_remove_char_at_index()
+                if event.key == pygame.K_RETURN:
+                    self.history.append(self.current_command)
+                    self.run_command(self.current_command)
+                    self.current_command = ''
+                    self.history_index = -1
+                    self.current_command_cursor = 0
+                if event.key == pygame.K_UP:
+                    if len(self.history) > 0:
+                        if self.history_index == -1:
+                            self.history_index = len(self.history) - 1
+                        elif self.history_index > 0:
+                            self.history_index -= 1
+                        self.current_command = self.history[self.history_index]
+                        self.current_command_cursor = len(self.current_command)
+                if event.key == pygame.K_DOWN:
+                    if self.history_index != -1 and self.history_index < len(self.history) - 1:
+                        self.history_index += 1
+                        self.current_command = self.history[self.history_index]
+                        self.current_command_cursor = len(self.current_command)
+                    else:
+                        self.history_index = -1
+                        self.current_command = ''
+                        self.current_command_cursor = 0
+                if event.key in ALPHABET:
+                    if self.caps_on:
+                        self.current_command_insert_char_at_index(ALPHABET[event.key].upper())
+                    else:   
+                        self.current_command_insert_char_at_index(ALPHABET[event.key])
+                if event.key in NUMBERS_SPECIAL_KEYS:
+                        if self.caps_on:
+                            self.current_command_insert_char_at_index( \
+                                        NUMBERS_SPECIAL_KEYS_SHIFTED[event.key])
+                        else:
+                            self.current_command_insert_char_at_index(NUMBERS_SPECIAL_KEYS[event.key])
+                if event.key == pygame.K_CAPSLOCK or \
+                   event.key == pygame.K_RSHIFT or \
+                   event.key == pygame.K_LSHIFT:
+                        self.caps_on = not self.caps_on
+                if event.key == pygame.K_LEFT:
+                    self.current_command_cursor = max(0, self.current_command_cursor - 1)
+                if event.key == pygame.K_RIGHT:
+                    self.current_command_cursor = min(len(self.current_command), \
+                                                         self.current_command_cursor + 1)
+            if event.type == pygame.KEYUP:
+                    if event.key == pygame.K_CAPSLOCK or \
+                       event.key == pygame.K_RSHIFT or \
+                       event.key == pygame.K_LSHIFT:
+                        self.caps_on = not self.caps_on
+                    if event.key == pygame.K_BACKSPACE:
+                       self.backspace_depressed = False
+                       self.backspace_depressed_timer = 0
+
+
+    def run_command(self, s):
+        #Parse args
+        s_parsed = s.split()
+        cmd = s_parsed[0]
+        print(cmd)
+        if cmd == 'echo':
+            output = ''
+            for arg in s_parsed[1:]:
+                output += arg
+                output += ' '
+            output = output[:-1]
+            self.stdout_history.append(output)
+        elif cmd == 'pause':
+            mahou.paused = True
+            print("Paused")
+        elif cmd == 'unpause':
+            mahou.paused = False
+        elif cmd == 'quit':
+            sys.exit()
+        else:
+            output = "Invalid command: " + s_parsed[0]
+            self.stdout_history.append(output)
+            
+
 def main():
     pygame.init()
     console = Console()
-    size = SCREEN_WIDTH, SCREEN_HEIGHT
-    screen = pygame.display.set_mode(size)
+    screen = pygame.display.set_mode((console.width, mahou.screen_height))
 
     clock = pygame.time.Clock()
     while 1:
@@ -218,7 +307,7 @@ def main():
                         console.current_command_remove_char_at_index()
                     if event.key == pygame.K_RETURN:
                         console.history.append(console.current_command)
-                        #TODO: run command
+                        console.run_command(console.current_command)
                         console.current_command = ''
                         console.history_index = -1
                         console.current_command_cursor = 0
