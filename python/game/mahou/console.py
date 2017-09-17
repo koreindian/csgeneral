@@ -1,5 +1,5 @@
 #import mahou
-import sys, math, time
+import sys, math, time, io
 import pygame
 import mahou_utils
 import mahou
@@ -172,11 +172,23 @@ class Console():
 
             #Draw stdout history, but only if console is fully drawn
             if self.displayed_height == self.height:
+                lines_blitted = 0
+                chars_per_line = self.width // cursor_width
                 for i in range(len(self.stdout_history))[::-1]:
                     hist_output = self.stdout_history[i]
-                    text_surface = self.console_font.render(hist_output, False, self.console_font_color)
-                    text_height = self.height - self.text_line_height * (len(self.stdout_history) - i)
-                    surface.blit(text_surface, (0,text_height))  
+                    #Split by newlines
+                    hist_lines = hist_output.rstrip('\n').split('\n')
+                    
+                    for l in hist_lines:
+                        #Split line into console_width sized surfaces
+                        line_split = [ l[j:j+chars_per_line] for j in range(0, len(l), \
+                                                                               chars_per_line) ]
+                        for line in line_split[::-1]:
+                            text_surface = self.console_font.render(line, False, self.console_font_color)
+                            text_height = self.height - self.text_line_height *\
+                                                        (1 + lines_blitted)
+                            surface.blit(text_surface, (0,text_height))
+                            lines_blitted +=1  
               
     def get_cursor_color(self):
             t = (math.cos(time.time() * 2)) ** 2
@@ -194,7 +206,7 @@ class Console():
                                    self.current_command[self.current_command_cursor:]
             self.current_command_cursor = max(0, self.current_command_cursor -1)
 
-    def process_event(self, event, game_engine):
+    def process_event(self, event, game_engine, entity_mgr):
         if not self.open:   #Redundent...
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_BACKQUOTE:
@@ -208,7 +220,7 @@ class Console():
                     self.current_command_remove_char_at_index()
                 if event.key == pygame.K_RETURN:
                     self.history.append(self.current_command)
-                    self.run_command(self.current_command, game_engine)
+                    self.run_command(self.current_command, game_engine, entity_mgr)
                     self.current_command = ''
                     self.history_index = -1
                     self.current_command_cursor = 0
@@ -259,7 +271,7 @@ class Console():
                        self.backspace_depressed_timer = 0
 
 
-    def run_command(self, s, game_engine):
+    def run_command(self, s, game_engine, entity_mgr):
         #Parse args
         s_parsed = s.split()
         cmd = s_parsed[0]
@@ -276,6 +288,27 @@ class Console():
             game_engine.paused = False
         elif cmd == 'quit':
             sys.exit()
+        elif cmd == 'exec':
+            try:
+                executed_cmd = s[5:]
+                
+                console_out = io.StringIO()
+                sys.stdout = console_out
+                exec(executed_cmd)
+                sys.stdout = sys.__stdout__
+                
+                output = console_out.getvalue()
+        
+                for c in output:
+                    print(ord(c))
+                self.stdout_history.append(output)
+                console_out.close()
+            except:
+                output = "ERROR -" + s +": "
+                output += str(sys.exc_info()[0])
+                output += str(sys.exc_info()[1])
+                output += str(sys.exc_info()[2])
+                self.stdout_history.append(output)
         else:
             output = "Invalid command: " + s_parsed[0]
             self.stdout_history.append(output)
