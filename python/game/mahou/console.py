@@ -288,6 +288,8 @@ class Console():
             game_engine.paused = False
         elif cmd == 'quit':
             sys.exit()
+        elif cmd == 'hitbox':
+            entity_mgr.display_hitboxes = not entity_mgr.display_hitboxes 
         elif cmd == 'exec':
             try:
                 executed_cmd = s[5:]

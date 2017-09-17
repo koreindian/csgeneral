@@ -5,8 +5,76 @@ import console as cmd_console
 import mahou_utils
 os.environ['SDL_VIDEO_CENTERED'] = '1'
 
-pygame.init()
 
+def main():
+    pygame.init()
+    
+    engine = Game_Engine()
+    screen = engine.screen
+    entity_mgr = Entity_Manager(engine)
+    event_mgr = Event_Manager()
+    event_mgr.level = 1
+    console = cmd_console.Console(engine)
+
+    magi = entity_mgr.player_ship
+
+    while 1:
+        engine.clock.tick(60)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                sys.exit()
+            if console.open:                         #Console input processing
+                console.process_event(event, engine, entity_mgr)
+            else:                                    #Regular game input processing
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_z:
+                        magi.shooting = True    
+                    if event.key == pygame.K_r:
+                        engine.restart()
+                        entity_mgr.restart(engine)
+                        magi = entity_mgr.player_ship    
+                    if event.key == pygame.K_p:
+                        engine.paused = not engine.paused
+                    if event.key == pygame.K_BACKQUOTE: #Enter console mode
+                        console.open = True
+                    if (event.key == pygame.K_UP or \
+                       event.key == pygame.K_RIGHT or \
+                       event.key == pygame.K_DOWN or \
+                       event.key == pygame.K_LEFT ) and \
+                       not magi.movement_direction_diag: #Do not update direction on press if already moving diagonally
+                            magi.determine_direction()
+                if event.type == pygame.KEYUP:
+                    if event.key == pygame.K_UP or \
+                       event.key == pygame.K_RIGHT or \
+                       event.key == pygame.K_DOWN or \
+                       event.key == pygame.K_LEFT:
+                            magi.determine_direction()
+                    if event.key == pygame.K_z:
+                        magi.shooting = False 
+                    if engine.paused:
+                        if event.key == pygame.K_f:
+                            engine.paused_manual_frame_tick = True
+                        
+        engine.update()
+        console.update()
+        
+        if not engine.game_over:
+            if not engine.paused or engine.paused_manual_frame_tick:
+                event_mgr.update(engine, entity_mgr)
+                entity_mgr.update(engine)
+                engine.paused_manual_frame_tick = False
+           
+            entity_mgr.draw(engine.screen)
+            engine.draw(entity_mgr)
+
+        else:
+            screen.fill((0,0,0))
+            game_over_text_surface = engine.generic_font.render('Game Over', False, (255,0,0))
+            screen.blit(game_over_text_surface, (engine.screen_width // 2 - game_over_text_surface.get_width() // 2, \
+                                                 engine.screen_height // 2 - game_over_text_surface.get_height() // 2))
+
+        console.draw(screen)
+        pygame.display.flip()
 
 #
 # The Game Engine manages all global state (ex. paused, game_over, tick clock)
@@ -30,6 +98,7 @@ class Game_Engine:
         self.elapsed_time = 0
 
         self.generic_font = pygame.font.SysFont('Courier', 30)
+
 
     def restart(self):
         self.total_frames = 0
@@ -81,14 +150,14 @@ class Event_Manager:
         time = engine.total_frames_played
 
         if time == 1:
-            entity_mgr.create_enemy_ship(360, 300)
-        if time == 180:
-            entity_mgr.create_enemy_ship(180, 300)
-            entity_mgr.create_enemy_ship(540, 300)
-        if time == 360:
-            entity_mgr.create_enemy_ship(144, 300)
-            entity_mgr.create_enemy_ship(288, 300)
-            entity_mgr.create_enemy_ship(432, 300)
+            entity_mgr.create_enemy_tank1((800, 500), (-100, 700))
+        #if time == 180:
+        #    entity_mgr.create_enemy_ship(180, 300)
+        #    entity_mgr.create_enemy_ship(540, 300)
+        #if time == 360:
+        #    entity_mgr.create_enemy_ship(144, 300)
+        #    entity_mgr.create_enemy_ship(288, 300)
+        #    entity_mgr.create_enemy_ship(432, 300)
 
     def update_lvl2(self, engine, entity_mgr):
         return
@@ -101,17 +170,24 @@ class Entity_Manager:
         self.enemy_bullet_list = []
         self.background = Background("background_concept_1.jpg", engine)
 
-    def restart(self):
+        self.display_hitboxes = False
+
+    def restart(self, engine):
         self.player_ship = Player_Ship()
         self.enemy_ship_list = []
         self.player_bullet_list = []
         self.enemy_bullet_list = []
-        self.background = Background("background_concept_1.jpg")
+        self.background = Background("background_concept_1.jpg", engine)
         
     def create_enemy_ship(self, x_spawn, y_spawn, shoot_interval=10):
         ship = Enemy_Ship(x_spawn, y_spawn, shoot_interval)
         self.enemy_ship_list += [ship]
         return ship
+
+    def create_enemy_tank1(self, source_coords, dest_coords, shoot_interval=10):
+        tank = Tank1(source_coords, dest_coords, shoot_interval)
+        self.enemy_ship_list += [tank]
+        return tank
 
     def update(self, game_engine):
         #Update Cycle: Update bullet positions, Update Ship Positions and Apply Damage, Delete all deletion candidates
@@ -134,86 +210,20 @@ class Entity_Manager:
     def draw(self, screen):
         screen.fill((0,0,0))
         self.background.draw(screen)
-        pygame.sprite.RenderPlain(self.player_ship).draw(screen)
+        
+        self.player_ship.draw(screen, self.display_hitboxes)
 
         for enemy in self.enemy_ship_list:
-            pygame.sprite.RenderPlain(enemy).draw(screen)
+            enemy.draw(screen, self.display_hitboxes)
 
         for bullet in self.player_bullet_list:
-            screen.blit(bullet.image, bullet.rect)
+            bullet.draw(screen,self.display_hitboxes)
+            #screen.blit(bullet.image, bullet.rect)
         
         for bullet in self.enemy_bullet_list:
-            screen.blit(bullet.image, bullet.rect)
+            bullet.draw(screen,self.display_hitboxes)
+            #screen.blit(bullet.image, bullet.rect)
 
-def main():
-    engine = Game_Engine()
-    screen = engine.screen
-    entity_mgr = Entity_Manager(engine)
-    event_mgr = Event_Manager()
-    event_mgr.level = 1
-    console = cmd_console.Console(engine)
-
-    magi = entity_mgr.player_ship
-
-    while 1:
-        engine.clock.tick(60)
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                sys.exit()
-            if console.open:                         #Console input processing
-                console.process_event(event, engine)
-            else:                                    #Regular game input processing
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_z:
-                        magi.shooting = True    
-                    if event.key == pygame.K_r:
-                        engine.restart()
-                        entity_mgr.restart()
-                        magi = entity_mgr.player_ship    
-                    if event.key == pygame.K_p:
-                        engine.paused = not engine.paused
-                    if event.key == pygame.K_BACKQUOTE: #Enter console mode
-                        console.open = True
-                    if (event.key == pygame.K_UP or \
-                       event.key == pygame.K_RIGHT or \
-                       event.key == pygame.K_DOWN or \
-                       event.key == pygame.K_LEFT ) and \
-                       not magi.movement_direction_diag: #Do not update direction on press if already moving diagonally
-                            magi.determine_direction()
-                if event.type == pygame.KEYUP:
-                    if event.key == pygame.K_UP or \
-                       event.key == pygame.K_RIGHT or \
-                       event.key == pygame.K_DOWN or \
-                       event.key == pygame.K_LEFT:
-                            magi.determine_direction()
-                    if event.key == pygame.K_z:
-                        magi.shooting = False 
-                    if engine.paused:
-                        if event.key == pygame.K_f:
-                            engine.paused_manual_frame_tick = True
-                        
-        engine.update()
-        console.update()
-        
-        if not engine.game_over:
-            if not engine.paused or engine.paused_manual_frame_tick:
-                event_mgr.update(engine, entity_mgr)
-                entity_mgr.update(engine)
-                engine.paused_manual_frame_tick = False
-           
-            entity_mgr.draw(engine.screen)
-            engine.draw(entity_mgr)
-
-        else:
-            screen.fill((0,0,0))
-            game_over_text_surface = engine.generic_font.render('Game Over', False, (255,0,0))
-            screen.blit(game_over_text_surface, (engine.screen_width // 2 - game_over_text_surface.get_width() // 2, \
-                                                 engine.screen_height // 2 - game_over_text_surface.get_height() // 2))
-
-        console.draw(screen)
-        pygame.display.flip()
-
-    
 class Background():
     def __init__(self, name, engine):
         self.image, self.rect = mahou_utils.load_image(name)
@@ -229,8 +239,6 @@ class Background():
     def draw(self, screen):
         screen.blit(self.image, self.rect)
         
-        
-
 class Player_Ship(pygame.sprite.Sprite):
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
@@ -284,7 +292,7 @@ class Player_Ship(pygame.sprite.Sprite):
         movement_amount = (self.movement_factor - self.movement_factor_shooting_reduction ) if self.shooting \
                            else self.movement_factor
 
-        #TODO: Can move slightly outside of frame inappropriately.
+        #TODO: Can move slightly outside of screen inappropriately.
         if self.movement_direction:
             if self.movement_direction == 'UP' and self.rect.top > 0:
                     self.rect.move_ip(0, -1 * movement_amount)
@@ -344,6 +352,12 @@ class Player_Ship(pygame.sprite.Sprite):
 
         if self.shooting:
             player_bullet_list += self.triple_shoot()
+
+    def draw(self, screen, display_hitbox):
+        screen.blit(self.image, self.rect)
+
+        if display_hitbox:
+            pygame.draw.rect(screen, (255,0,0), self.rect, 1)
 
     #Returns list of bullets
     def shoot(self):
@@ -424,6 +438,12 @@ class Enemy_Ship(pygame.sprite.Sprite):
     def deletion_criteria_met(self):
         return self.health <= 0
 
+    def draw(self, screen, display_hitbox):
+        screen.blit(self.image, self.rect)
+
+        if display_hitbox:
+            pygame.draw.rect(screen, (255,0,0), self.rect, 1)
+
     #Returns list of bullets
     def shoot(self, player_ship):
         bullets = []
@@ -458,9 +478,9 @@ class Enemy_Ship(pygame.sprite.Sprite):
 
         if x == 0:
             vx = 0
-            vy = velocity
+            vy = velocity if y > 0 else -1 * velocity
         elif y == 0:
-            vx = velocity
+            vx = velocity if x > 0 else -1 * velocity
             vy = 0
         else:
             theta = math.atan(abs(y/x))
@@ -506,6 +526,92 @@ class Enemy_Ship(pygame.sprite.Sprite):
         b = Bullet(self.rect.center, vx, vy, dmg=5)
         return [b]
 
+class Enemy_Ship1(Enemy_Ship):
+    def __init__(self, x_spawn, y_spawn, shoot_interval=180):
+        Enemy_Ship.__init__(self)
+        self.image, self.rect = mahou_utils.load_image('ship_generic2_transparent.png')
+
+class Tank1(Enemy_Ship):
+    def __init__(self, source_coords, dest_coords, shoot_interval=180):
+        Enemy_Ship.__init__(self, source_coords[0], source_coords[1], shoot_interval)
+
+        self.source_coords = source_coords
+        self.dest_coords = dest_coords
+
+        self.base_image, self.base_rect = mahou_utils.load_image('tank1_base.png')
+        self.base_rect.center = source_coords
+        self.base_realx = self.base_rect.center[0]
+        self.base_realy = self.base_rect.center[1]
+
+        self.turret_image, self.turret_rect = mahou_utils.load_image('tank1_turret.png')
+        self.turret_image_original = self.turret_image
+        self.turret_rect.center = source_coords
+        self.turret_realx = self.turret_rect.center[0]
+        self.turret_realy = self.turret_rect.center[1]
+
+        self.rect = self.base_rect
+        
+
+        movement_theta = mahou_utils.determine_angle(source_coords, dest_coords)
+        x_diff = dest_coords[0] - source_coords[0]
+        y_diff = dest_coords[1] - source_coords[1]
+        self.base_image, self.base_rect = mahou_utils.rotate_center(self.base_image, \
+                                                                    self.base_rect, \
+                                                                    math.degrees(movement_theta))
+
+        self.velocity = 1
+
+        if x_diff == 0:
+            self.vx = 0
+            self.vy = self.velocity if y_diff > 0 else -1 * self.velocity
+        elif y_diff == 0:
+            self.vx = self.velocity if x_diff > 0 else -1 * self.velocity
+            self.vy = 0
+        else:
+            theta = math.atan(abs(y_diff/x_diff))
+            self.vx = math.cos(theta) * self.velocity if x_diff > 0 else -1 * math.cos(theta) * self.velocity
+            self.vy = math.sin(theta) * self.velocity if y_diff > 0 else -1 * math.sin(theta) * self.velocity
+
+    def update(self, entity_mgr, game_engine):
+        self.base_realx += self.vx
+        self.base_realy += self.vy
+        self.turret_realx += self.vx
+        self.turret_realy += self.vy
+
+        self.base_rect.move_ip(self.base_realx - self.base_rect.center[0], self.base_realy - self.base_rect.center[1])
+        self.turret_rect.move_ip(self.turret_realx - self.turret_rect.center[0], self.turret_realy - self.turret_rect.center[1])
+        self.rect = self.base_rect
+
+        print("Base: (" + str(self.base_rect.center[0]) + "," +str(self.base_rect.center[1]) + ")" + \
+              "\tTurret: (" +str(self.turret_rect.center[0]) + "," + str(self.turret_rect.center[1])+ ")")
+        turret_player_theta = mahou_utils.determine_angle(self.turret_rect.center, entity_mgr.player_ship.rect.center)
+        self.turret_image, self.turret_rect = mahou_utils.rotate_center(self.turret_image_original, \
+                                                                        self.turret_rect, \
+                                                                        math.degrees(turret_player_theta))
+
+        for bullet in entity_mgr.player_bullet_list:
+            if self.base_rect.colliderect(bullet.rect):
+                self.health -= bullet.damage
+
+        entity_mgr.enemy_bullet_list += self.shoot(entity_mgr.player_ship)
+
+    def deletion_criteria_met(self):
+        tolerance = 1
+        if self.health <= 0:
+            return True
+        if abs(self.base_rect.center[0] - self.dest_coords[0]) < tolerance and \
+           abs(self.base_rect.center[1] - self.dest_coords[1]) < tolerance:
+            return True
+
+        return False
+
+    def draw(self, screen, display_hitbox):
+        screen.blit(self.base_image, self.base_rect)
+        screen.blit(self.turret_image, self.turret_rect)
+            
+        if display_hitbox:
+            pygame.draw.rect(screen, (255,0,0), self.rect, 1)
+
 class Bullet(pygame.sprite.Sprite):
     def __init__(self, parent_center, vx=0, vy=0, dmg=1):
         pygame.sprite.Sprite.__init__(self)
@@ -539,6 +645,11 @@ class Bullet(pygame.sprite.Sprite):
 
         return False
     
+    def draw(self, screen, display_hitbox):
+       screen.blit(self.image, self.rect)
+
+       if display_hitbox:
+           pygame.draw.rect(screen, (255,0,0), self.rect, 1)   
 
 class Gravity_Bullet(Bullet):
     def __init__(self, parent_center, vx=0, vy=0, ax=0, ay=0, dmg=1):
