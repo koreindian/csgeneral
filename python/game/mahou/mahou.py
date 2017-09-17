@@ -150,7 +150,7 @@ class Event_Manager:
         time = engine.total_frames_played
 
         if time == 1:
-            entity_mgr.create_enemy_tank1((800, 500), (-100, 700))
+            entity_mgr.create_enemy_tank1((800, 500), (-100, 700), 100)
         #if time == 180:
         #    entity_mgr.create_enemy_ship(180, 300)
         #    entity_mgr.create_enemy_ship(540, 300)
@@ -170,7 +170,7 @@ class Entity_Manager:
         self.enemy_bullet_list = []
         self.background = Background("background_concept_1.jpg", engine)
 
-        self.display_hitboxes = False
+        self.display_hitboxes = True
 
     def restart(self, engine):
         self.player_ship = Player_Ship()
@@ -244,11 +244,16 @@ class Player_Ship(pygame.sprite.Sprite):
         pygame.sprite.Sprite.__init__(self)
         self.image, self.rect = mahou_utils.load_image('ship_generic1_transparent.png')
         self.rect.topleft = (360,800)
+        self.hitbox_width = 10
+        self.hitbox_height = 10
+        self.hitbox = self.rect.copy()
+        self.hitbox.inflate_ip(-1 * (self.rect.width - self.hitbox_width), \
+                               -1 * (self.rect.height - self.hitbox_height) )
 
         self.movement_direction = None
         self.movement_direction_diag = False #If moving diagonally, don't update direction from keydown event
-        self.movement_factor = 8
-        self.movement_factor_shooting_reduction = 3
+        self.movement_factor = 5
+        self.movement_factor_shooting_reduction = 2
         self.shooting = False
 
         self.health = 100
@@ -284,6 +289,10 @@ class Player_Ship(pygame.sprite.Sprite):
             self.movement_direction = None
             self.direction_diag = False
 
+    def move(self, x,y):
+        self.rect.move_ip(x,y)
+        self.hitbox.move_ip(x,y)
+
     def update(self, player_bullet_list, enemy_bullet_list, game_engine):
         if self.health <= 0:
             game_engine.game_over = True
@@ -295,59 +304,59 @@ class Player_Ship(pygame.sprite.Sprite):
         #TODO: Can move slightly outside of screen inappropriately.
         if self.movement_direction:
             if self.movement_direction == 'UP' and self.rect.top > 0:
-                    self.rect.move_ip(0, -1 * movement_amount)
+                    self.move(0, -1 * movement_amount)
             elif self.movement_direction == 'LEFT' and self.rect.left > 0:
-                    self.rect.move_ip(-1 * movement_amount, 0)
+                    self.move(-1 * movement_amount, 0)
             elif self.movement_direction == 'RIGHT' and self.rect.right < game_engine.screen_width:
-                    self.rect.move_ip(movement_amount, 0)
+                    self.move(movement_amount, 0)
             elif self.movement_direction == 'DOWN' and self.rect.bottom < game_engine.screen_height:
-                    self.rect.move_ip(0, movement_amount)
+                    self.move(0, movement_amount)
             elif self.movement_direction == 'UP_LEFT':
                     x = -1 * math.cos(math.pi / 4) * movement_amount
                     y = -1 * math.sin(math.pi / 4) * movement_amount
                     
                     if self.rect.top > 0 and self.rect.left > 0:
-                        self.rect.move_ip(x,y)
+                        self.move(x,y)
                     elif self.rect.top > 0 and not self.rect.left > 0:
-                        self.rect.move_ip(0,-1 * movement_amount)
+                        self.move(0,-1 * movement_amount)
                     elif not self.rect.top > 0 and self.rect.left > 0:
-                        self.rect.move_ip(-1 * movement_amount,0)
+                        self.move(-1 * movement_amount,0)
 
             elif self.movement_direction == 'UP_RIGHT':
                     x = math.cos(math.pi / 4) * movement_amount
                     y = -1 * math.sin(math.pi / 4) * movement_amount
                  
                     if self.rect.top > 0 and self.rect.right < game_engine.screen_width:
-                        self.rect.move_ip(x,y)
+                        self.move(x,y)
                     elif self.rect.top > 0 and not self.rect.right < game_engine.screen_width:
-                        self.rect.move_ip(0,-1 * movement_amount)
+                        self.move(0,-1 * movement_amount)
                     elif not self.rect.top > 0 and self.rect.right < game_engine.screen_width:
-                        self.rect.move_ip(movement_amount,0)
+                        self.move(movement_amount,0)
 
             elif self.movement_direction == 'DOWN_LEFT':
                     x = -1 * math.cos(math.pi / 4) * movement_amount
                     y = math.sin(math.pi / 4) * movement_amount
                     
                     if self.rect.bottom < game_engine.screen_height and self.rect.left > 0:
-                        self.rect.move_ip(x,y)
+                        self.move(x,y)
                     elif self.rect.bottom < game_engine.screen_height and not self.rect.left > 0:
-                        self.rect.move_ip(0,movement_amount)
+                        self.move(0,movement_amount)
                     elif not self.rect.bottom < game_engine.screen_height and self.rect.left > 0:
-                        self.rect.move_ip(-1 * movement_amount,0)
+                        self.move(-1 * movement_amount,0)
 
             elif self.movement_direction == 'DOWN_RIGHT':
                     x = math.cos(math.pi / 4) * movement_amount
                     y = math.sin(math.pi / 4) * movement_amount
                     
                     if self.rect.bottom < game_engine.screen_height and self.rect.right < game_engine.screen_width:
-                        self.rect.move_ip(x,y)
+                        self.move(x,y)
                     elif self.rect.bottom < game_engine.screen_height and not self.rect.right < game_engine.screen_width:
-                        self.rect.move_ip(0,movement_amount)
+                        self.move(0,movement_amount)
                     elif not self.rect.bottom < game_engine.screen_height and self.rect.right < game_engine.screen_width:
-                        self.rect.move_ip(movement_amount,0)
+                        self.move(movement_amount,0)
 
         for bullet in enemy_bullet_list:
-            if pygame.sprite.collide_rect(bullet, self):
+            if self.hitbox.colliderect(bullet.hitbox):
                 self.health -= bullet.damage
 
         if self.shooting:
@@ -357,7 +366,7 @@ class Player_Ship(pygame.sprite.Sprite):
         screen.blit(self.image, self.rect)
 
         if display_hitbox:
-            pygame.draw.rect(screen, (255,0,0), self.rect, 1)
+            pygame.draw.rect(screen, (255,0,0), self.hitbox, 1)
 
     #Returns list of bullets
     def shoot(self):
@@ -487,7 +496,7 @@ class Enemy_Ship(pygame.sprite.Sprite):
             vx = math.cos(theta) * velocity if x > 0 else -1 * math.cos(theta) * velocity
             vy = math.sin(theta) * velocity if y > 0 else -1 * math.sin(theta) * velocity
  
-        b = Bullet(self.rect.center, vx, vy, dmg=1)
+        b = Bullet(self.rect.center, vx, vy, dmg=1, player_bullet=False)
         return [b]
  
     def radial_shot(self, num_bullets):
@@ -497,7 +506,7 @@ class Enemy_Ship(pygame.sprite.Sprite):
             theta = (2 * math.pi) * (i / num_bullets)
             vx = velocity * round(math.sin(theta), 10)
             vy = velocity * round(math.cos(theta), 10)
-            b = Bullet(self.rect.center, vx, vy)
+            b = Bullet(self.rect.center, vx, vy, player_bullet=False)
             output.append(b)
         return output
 
@@ -508,7 +517,7 @@ class Enemy_Ship(pygame.sprite.Sprite):
             theta = (2 * math.pi) * (i / num_bullets)
             vxi = -1 * velocity * round(math.sin(theta), 10)
             vyi = -1 * velocity * round(math.cos(theta), 10)
-            b = Inverse_Bullet((0,0), self.rect.center, vx=vxi, vy=vyi)
+            b = Inverse_Bullet((0,0), self.rect.center, vx=vxi, vy=vyi, player_bullet=False)
             b.init_spawn_point(120)
             output.append(b)
         return output
@@ -523,7 +532,7 @@ class Enemy_Ship(pygame.sprite.Sprite):
         theta = (2 * math.pi) * (i * num_circles_in_cycle / num_bullets_in_cycle)
         vx = velocity * math.sin(theta)
         vy = velocity * math.cos(theta)
-        b = Bullet(self.rect.center, vx, vy, dmg=5)
+        b = Bullet(self.rect.center, vx, vy, dmg=5, player_bullet=False)
         return [b]
 
 class Enemy_Ship1(Enemy_Ship):
@@ -550,7 +559,8 @@ class Tank1(Enemy_Ship):
         self.turret_realy = self.turret_rect.center[1]
 
         self.rect = self.base_rect
-        
+        self.hitbox = self.rect.copy()
+        self.hitbox.inflate_ip(10,10)
 
         movement_theta = mahou_utils.determine_angle(source_coords, dest_coords)
         x_diff = dest_coords[0] - source_coords[0]
@@ -578,19 +588,18 @@ class Tank1(Enemy_Ship):
         self.turret_realx += self.vx
         self.turret_realy += self.vy
 
+        self.hitbox.move_ip(self.base_realx - self.base_rect.center[0], self.base_realy - self.base_rect.center[1])
         self.base_rect.move_ip(self.base_realx - self.base_rect.center[0], self.base_realy - self.base_rect.center[1])
         self.turret_rect.move_ip(self.turret_realx - self.turret_rect.center[0], self.turret_realy - self.turret_rect.center[1])
         self.rect = self.base_rect
 
-        print("Base: (" + str(self.base_rect.center[0]) + "," +str(self.base_rect.center[1]) + ")" + \
-              "\tTurret: (" +str(self.turret_rect.center[0]) + "," + str(self.turret_rect.center[1])+ ")")
         turret_player_theta = mahou_utils.determine_angle(self.turret_rect.center, entity_mgr.player_ship.rect.center)
         self.turret_image, self.turret_rect = mahou_utils.rotate_center(self.turret_image_original, \
                                                                         self.turret_rect, \
                                                                         math.degrees(turret_player_theta))
 
         for bullet in entity_mgr.player_bullet_list:
-            if self.base_rect.colliderect(bullet.rect):
+            if self.hitbox.colliderect(bullet.hitbox):
                 self.health -= bullet.damage
 
         entity_mgr.enemy_bullet_list += self.shoot(entity_mgr.player_ship)
@@ -610,15 +619,20 @@ class Tank1(Enemy_Ship):
         screen.blit(self.turret_image, self.turret_rect)
             
         if display_hitbox:
-            pygame.draw.rect(screen, (255,0,0), self.rect, 1)
+            pygame.draw.rect(screen, (255,0,0), self.hitbox, 1)
 
 class Bullet(pygame.sprite.Sprite):
-    def __init__(self, parent_center, vx=0, vy=0, dmg=1):
+    def __init__(self, parent_center, vx=0, vy=0, dmg=1, player_bullet=True):
         pygame.sprite.Sprite.__init__(self)
         self.image, self.rect = mahou_utils.load_image('bullet_generic_transparent.png')
         self.rect.center = parent_center
         self.velocity_vertical = vy
         self.velocity_horizontal = vx
+        self.hitbox = self.rect.copy()
+        if player_bullet:
+            self.hitbox.inflate_ip(30,30)
+        else:
+            self.hitbox.inflate_ip(-10,-10)
         
         #Velocities will likely be fractions of pixels, so track the real x and y
         #separately from the bullet sprite's rectangle coordinates
@@ -631,6 +645,7 @@ class Bullet(pygame.sprite.Sprite):
         self.realx += self.velocity_horizontal
         self.realy += self.velocity_vertical
 
+        self.hitbox.move_ip(self.realx - self.rect.x, self.realy - self.rect.y)
         self.rect.move_ip(self.realx - self.rect.x, self.realy - self.rect.y)
 
     #Returns true if bullet should be removed from the game engine's bullet tracking lists
@@ -640,7 +655,7 @@ class Bullet(pygame.sprite.Sprite):
             return True
 
         for ship in opponent_ships:
-            if pygame.sprite.collide_rect(ship, self):
+            if ship.hitbox.colliderect(self.hitbox):
                 return True
 
         return False
@@ -649,11 +664,11 @@ class Bullet(pygame.sprite.Sprite):
        screen.blit(self.image, self.rect)
 
        if display_hitbox:
-           pygame.draw.rect(screen, (255,0,0), self.rect, 1)   
+           pygame.draw.rect(screen, (255,0,0), self.hitbox, 1)   
 
 class Gravity_Bullet(Bullet):
-    def __init__(self, parent_center, vx=0, vy=0, ax=0, ay=0, dmg=1):
-        Bullet.__init__(self, parent_center, vx, vy, dmg)
+    def __init__(self, parent_center, vx=0, vy=0, ax=0, ay=0, dmg=1, player_bullet=True):
+        Bullet.__init__(self, parent_center, vx, vy, dmg, player_bullet)
         self.acceleration_vertical = ay
         self.acceleration_horizontal = ax
 
@@ -668,8 +683,8 @@ class Gravity_Bullet(Bullet):
 
 #Bullets which start off screen, and terminate at a point on the screen
 class Inverse_Bullet(Gravity_Bullet):
-    def __init__(self, spawn_point, terminating_point, vx=0, vy=0, ax=0, ay=0, dmg=1):
-        Gravity_Bullet.__init__(self, spawn_point, vx, vy, ax, ay, dmg)
+    def __init__(self, spawn_point, terminating_point, vx=0, vy=0, ax=0, ay=0, dmg=1, player_bullet=True):
+        Gravity_Bullet.__init__(self, spawn_point, vx, vy, ax, ay, dmg, player_bullet)
         self.tpoint = terminating_point
         self.tpoint_hitbox = pygame.Rect((self.tpoint[0], self.tpoint[1]), \
                                          (self.rect.width, self.rect.height))
