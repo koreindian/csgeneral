@@ -14,12 +14,14 @@ def main():
     entity_mgr = Entity_Manager(engine)
     event_mgr = Event_Manager()
     event_mgr.level = 1
-    console = cmd_console.Console(engine)
+    camera = Camera(engine, entity_mgr)
 
-    magi = entity_mgr.player_ship
+    console = cmd_console.Console(engine)
 
     while 1:
         engine.clock.tick(60)
+        magi = entity_mgr.player_ship
+       
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 sys.exit()
@@ -32,7 +34,7 @@ def main():
                     if event.key == pygame.K_r:
                         engine.restart()
                         entity_mgr.restart(engine)
-                        magi = entity_mgr.player_ship    
+                        camera.restart(engine, entity_mgr)
                     if event.key == pygame.K_p:
                         engine.paused = not engine.paused
                     if event.key == pygame.K_BACKQUOTE: #Enter console mode
@@ -61,21 +63,55 @@ def main():
         if not engine.game_over:
             if not engine.paused or engine.paused_manual_frame_tick:
                 event_mgr.update(engine, entity_mgr)
-                entity_mgr.update(engine)
+                entity_mgr.update(engine, camera)
+                camera.update()
                 engine.paused_manual_frame_tick = False
            
-            entity_mgr.draw(engine.screen)
+            entity_mgr.draw(engine, camera)
             engine.draw(entity_mgr)
 
         else:
-            screen.fill((0,0,0))
-            game_over_text_surface = engine.generic_font.render('Game Over', False, (255,0,0))
-            screen.blit(game_over_text_surface, (engine.screen_width // 2 - game_over_text_surface.get_width() // 2, \
-                                                 engine.screen_height // 2 - game_over_text_surface.get_height() // 2))
+            engine.draw(entity_mgr)
 
         console.draw(screen)
         pygame.display.flip()
 
+class Camera:
+    def __init__(self, engine, entity_mgr):
+        self.camera_worldx = 0 
+        self.camera_worldy = entity_mgr.background.image.get_height() - engine.screen_height
+        self.camera_vx = 0
+        self.camera_vy = -1
+
+    def update(self):
+        self.camera_worldx += self.camera_vx
+        self.camera_worldy += self.camera_vy
+        #print("Camera: (" +str(self.camera_worldx) + "," + str(self.camera_worldy)+ ")")
+
+    def restart(self, engine, entity_mgr):
+        self.camera_worldx = 0 
+        self.camera_worldy = entity_mgr.background.image.get_height() - engine.screen_height
+        self.camera_vx = 0
+        self.camera_vy = -1
+
+    #World to Camera coordinates
+    def w2c(self, coords):
+        x = coords[0]
+        y = coords[1]
+        return (x - self.camera_worldx, y - self.camera_worldy)
+
+    def rect_w2c(self, rect):
+        rect.x -= self.camera_worldx
+        rect.y -= self.camera_worldy
+
+    def c2w(self, coords):
+        x = coords[0]
+        y = coords[1]
+        return (self.camera_worldx + x , self.camera_worldy + y)
+        
+    def rect_c2w(self, rect):
+        rect.x += self.camera_worldx
+        rect.y += self.camera_worldy
 #
 # The Game Engine manages all global state (ex. paused, game_over, tick clock)
 #
@@ -86,8 +122,12 @@ class Game_Engine:
         self.screen_height = 900
         self.screen_width = 720
         self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
+
         self.paused = False
         self.paused_manual_frame_tick = False #Variable to move one frame forward while in paused mode
+        
+        self.player_lives = 2
+        self.player_continues = 0
         self.game_over = False
 
             
@@ -106,6 +146,8 @@ class Game_Engine:
         self.started_time = time.time()
         self.current_time = time.time()
         self.elapsed_time = 0
+        self.player_lives = 2
+        self.player_continues = 0
         self.game_over = False
                 
 
@@ -117,7 +159,7 @@ class Game_Engine:
 
         self.current_time = time.time()
         self.elapsed_time = self.current_time - self.started_time
-
+        
     def get_FPS(self):
         return format(self.total_frames / self.elapsed_time, '.2f')
 
@@ -126,16 +168,25 @@ class Game_Engine:
         font = self.generic_font
         screen = self.screen
 
-        if self.paused:
-            paused = font.render('Paused', False, red)
-            screen.blit(paused, (self.screen_width // 2  - paused.get_width()  // 2, \
-                                 self.screen_height // 2 - paused.get_height() // 2))        
-        
-        player_health = font.render('Health: ' + str(entity_mgr.player_ship.health), False, red)
-        screen.blit(player_health, (0,0))
+        if self.game_over:
+            screen.fill((0,0,0))
+            game_over_text_surface = self.generic_font.render('Game Over', False, (255,0,0))
+            screen.blit(game_over_text_surface, (self.screen_width // 2 - game_over_text_surface.get_width() // 2, \
+                                                 self.screen_height // 2 - game_over_text_surface.get_height() // 2))
+        else:
+            if self.paused:
+                paused = font.render('Paused', False, red)
+                screen.blit(paused, (self.screen_width // 2  - paused.get_width()  // 2, \
+                                     self.screen_height // 2 - paused.get_height() // 2))        
+            
+            player_health = font.render('Health: ' + str(entity_mgr.player_ship.health), False, red)
+            screen.blit(player_health, (0,0))
 
-        FPS = font.render('FPS: ' + str(self.get_FPS()), False, red)
-        screen.blit(FPS, (self.screen_width - FPS.get_width(), 0))
+            player_lives = font.render("Lives: " + str(self.player_lives), False, red)
+            screen.blit(player_lives, (0, font.get_height())) 
+
+            FPS = font.render('FPS: ' + str(self.get_FPS()), False, red)
+            screen.blit(FPS, (self.screen_width - FPS.get_width(), 0))
  
 
 class Event_Manager:
@@ -146,11 +197,37 @@ class Event_Manager:
         if   self.level == 1: self.update_lvl1(game_engine, entity_manager)
         elif self.level == 2: self.update_lvl2(game_engine, entity_manager)    
 
-    def update_lvl1(self, engine, entity_mgr): 
+    def update_lvl1(self, engine, entity_mgr):
         time = engine.total_frames_played
+        bg = entity_mgr.background
+        level_height = bg.rect.height
 
         if time == 1:
-            entity_mgr.create_enemy_tank1((800, 500), (-100, 700), 100)
+            tsi = 200
+            tv = 1
+            entity_mgr.create_enemy_tank1((700, level_height - 600), (-100, level_height - 400), tv, tsi)
+            entity_mgr.create_enemy_tank1((700, level_height - 700), (-100, level_height - 500), tv, tsi)
+            entity_mgr.create_enemy_tank1((700, level_height - 800), (-100, level_height - 600), tv, tsi)
+                                                                                                       
+            entity_mgr.create_enemy_tank1((600, level_height - 600), (-200, level_height - 400), tv, tsi)
+            entity_mgr.create_enemy_tank1((600, level_height - 700), (-200, level_height - 500), tv, tsi)
+            entity_mgr.create_enemy_tank1((600, level_height - 800), (-200, level_height - 600), tv, tsi)
+                                                                                                       
+            entity_mgr.create_enemy_tank1((500, level_height - 600), (-300, level_height - 400), tv, tsi)
+            entity_mgr.create_enemy_tank1((500, level_height - 700), (-300, level_height - 500), tv, tsi)
+            entity_mgr.create_enemy_tank1((500, level_height - 800), (-300, level_height - 600), tv, tsi)
+                                                                                                       
+            entity_mgr.create_enemy_tank1((400, level_height - 600), (-400, level_height - 400), tv, tsi)
+            entity_mgr.create_enemy_tank1((400, level_height - 700), (-400, level_height - 500), tv, tsi)
+            entity_mgr.create_enemy_tank1((400, level_height - 800), (-400, level_height - 600), tv, tsi)
+                                                                                                       
+            entity_mgr.create_enemy_tank1((300, level_height - 600), (-500, level_height - 400), tv, tsi)
+            entity_mgr.create_enemy_tank1((300, level_height - 700), (-500, level_height - 500), tv, tsi)
+            entity_mgr.create_enemy_tank1((300, level_height - 800), (-500, level_height - 600), tv, tsi)
+                                                                                                       
+            entity_mgr.create_enemy_tank1((200, level_height - 600), (-600, level_height - 400), tv, tsi)
+            entity_mgr.create_enemy_tank1((200, level_height - 700), (-600, level_height - 500), tv, tsi)
+            entity_mgr.create_enemy_tank1((200, level_height - 800), (-600, level_height - 600), tv, tsi)
         #if time == 180:
         #    entity_mgr.create_enemy_ship(180, 300)
         #    entity_mgr.create_enemy_ship(540, 300)
@@ -170,7 +247,7 @@ class Entity_Manager:
         self.enemy_bullet_list = []
         self.background = Background("background_concept_1.jpg", engine)
 
-        self.display_hitboxes = True
+        self.display_hitboxes = False
 
     def restart(self, engine):
         self.player_ship = Player_Ship()
@@ -184,12 +261,12 @@ class Entity_Manager:
         self.enemy_ship_list += [ship]
         return ship
 
-    def create_enemy_tank1(self, source_coords, dest_coords, shoot_interval=10):
-        tank = Tank1(source_coords, dest_coords, shoot_interval)
+    def create_enemy_tank1(self, source_coords, dest_coords, velocity, shoot_interval):
+        tank = Tank1(source_coords, dest_coords, velocity, shoot_interval)
         self.enemy_ship_list += [tank]
         return tank
 
-    def update(self, game_engine):
+    def update(self, game_engine, camera):
         #Update Cycle: Update bullet positions, Update Ship Positions and Apply Damage, Delete all deletion candidates
         for bullet in self.player_bullet_list:
             bullet.update()
@@ -197,51 +274,56 @@ class Entity_Manager:
             bullet.update()
         
         self.background.update()
-        self.player_ship.update(self.player_bullet_list, self.enemy_bullet_list, game_engine)
+        self.player_ship.update(self.player_bullet_list, self.enemy_bullet_list, game_engine, self, camera)
         for ship in self.enemy_ship_list:
-            ship.update(self, game_engine)
+            ship.update(self, game_engine, camera)
 
         self.player_bullet_list = [bullet for bullet in self.player_bullet_list \
-                                   if not bullet.deletion_criteria_met(game_engine.screen.get_rect(), self.enemy_ship_list)]
+                                   if not bullet.deletion_criteria_met(game_engine.screen.get_rect(), \
+                                                                       self.enemy_ship_list, self, camera)]
         self.enemy_bullet_list = [bullet for bullet in self.enemy_bullet_list \
-                                   if not bullet.deletion_criteria_met(game_engine.screen.get_rect(), [self.player_ship])]
+                                   if not bullet.deletion_criteria_met(game_engine.screen.get_rect(), \
+                                                                       [self.player_ship], self, camera)]
         self.enemy_ship_list = [ship for ship in self.enemy_ship_list if not ship.deletion_criteria_met()]
 
-    def draw(self, screen):
+    def draw(self, game_engine, camera):
+        screen = game_engine.screen
         screen.fill((0,0,0))
-        self.background.draw(screen)
+        self.background.draw(game_engine, camera)
         
         self.player_ship.draw(screen, self.display_hitboxes)
 
         for enemy in self.enemy_ship_list:
-            enemy.draw(screen, self.display_hitboxes)
+            enemy.draw(screen, camera, self.display_hitboxes)
 
         for bullet in self.player_bullet_list:
-            bullet.draw(screen,self.display_hitboxes)
-            #screen.blit(bullet.image, bullet.rect)
+            bullet.draw(screen, camera, self.display_hitboxes)
         
         for bullet in self.enemy_bullet_list:
-            bullet.draw(screen,self.display_hitboxes)
-            #screen.blit(bullet.image, bullet.rect)
+            bullet.draw(screen, camera, self.display_hitboxes)
 
 class Background():
     def __init__(self, name, engine):
         self.image, self.rect = mahou_utils.load_image(name)
-        self.rect.top = engine.screen_height - self.image.get_height()
-        print (self.rect)
-        self.scroll_speed = 1
-        self.scroll_acceleration = 0
+        self.rect.top = 0 #engine.screen_height - self.image.get_height()
 
     def update(self):
-        self.scroll_speed += self.scroll_acceleration
-        self.rect.move_ip(0, self.scroll_speed)
+        #No updating to world coordinates of background, so nothing happens here
+        #self.scroll_speed += self.scroll_acceleration
+        #self.rect.move_ip(0, self.scroll_speed)
+        return
 
-    def draw(self, screen):
+    def draw(self, engine, camera):
+        screen = engine.screen
+
+        camera.rect_w2c(self.rect)
         screen.blit(self.image, self.rect)
-        
+        camera.rect_c2w(self.rect)        
+
 class Player_Ship(pygame.sprite.Sprite):
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
+        #The player is always in Camera coordinates, and never in World coordinates
         self.image, self.rect = mahou_utils.load_image('ship_generic1_transparent.png')
         self.rect.topleft = (360,800)
         self.hitbox_width = 10
@@ -254,9 +336,15 @@ class Player_Ship(pygame.sprite.Sprite):
         self.movement_direction_diag = False #If moving diagonally, don't update direction from keydown event
         self.movement_factor = 5
         self.movement_factor_shooting_reduction = 2
-        self.shooting = False
 
-        self.health = 100
+        self.shooting = False
+        self.shoot_counter = 0
+        self.shoot_interval = 8
+
+
+        self.health = 1
+
+        self.shoot_function = self.shoot_br_wide
 
     def determine_direction(self):
         pressed = pygame.key.get_pressed()
@@ -293,9 +381,13 @@ class Player_Ship(pygame.sprite.Sprite):
         self.rect.move_ip(x,y)
         self.hitbox.move_ip(x,y)
 
-    def update(self, player_bullet_list, enemy_bullet_list, game_engine):
+    def update(self, player_bullet_list, enemy_bullet_list, game_engine, entity_mgr, camera):
         if self.health <= 0:
-            game_engine.game_over = True
+            if game_engine.player_lives > 0:
+                game_engine.player_lives -= 1
+                entity_mgr.player_ship = Player_Ship()
+            else: 
+                game_engine.game_over = True
             return
 
         movement_amount = (self.movement_factor - self.movement_factor_shooting_reduction ) if self.shooting \
@@ -355,34 +447,66 @@ class Player_Ship(pygame.sprite.Sprite):
                     elif not self.rect.bottom < game_engine.screen_height and self.rect.right < game_engine.screen_width:
                         self.move(movement_amount,0)
 
+        #Calculate bullet collisions.
+        #Need to translate hitbox into world coordinates
+        camera.rect_c2w(self.hitbox)
         for bullet in enemy_bullet_list:
             if self.hitbox.colliderect(bullet.hitbox):
                 self.health -= bullet.damage
+        camera.rect_w2c(self.hitbox)
 
         if self.shooting:
-            player_bullet_list += self.triple_shoot()
+            player_bullet_list += self.shoot(camera)
+        else:
+            self.shoot_counter = 0
 
     def draw(self, screen, display_hitbox):
+        #All coordinates already in camera view
         screen.blit(self.image, self.rect)
 
         if display_hitbox:
             pygame.draw.rect(screen, (255,0,0), self.hitbox, 1)
 
     #Returns list of bullets
-    def shoot(self):
-        b = Bullet (self.rect.center, 0, -25)
+    def shoot(self, camera):
+        bullets = []
+        if self.shoot_counter % self.shoot_interval == 0:
+            bullets += self.shoot_function(camera)
+        
+        self.shoot_counter += 1
+        return bullets
+
+    def shoot_linear(self, camera):
+        wc = camera.c2w(self.rect.center) 
+        b = Bullet (wc, 0, -25)
         return [b]
 
-    def triple_shoot_cone(self):
-        b1 = Bullet (self.rect.center, -5, -25)
-        b2 = Bullet (self.rect.center, 0, -25)
-        b3 = Bullet (self.rect.center, 5, -25)
+    def shoot_br_wide(self, camera):
+        wc = camera.c2w(self.rect.center)
+        vy = -80
+        b1 = Bullet ((wc[0] -100, wc[1]), 0, vy)
+        b2 = Bullet ((wc[0] -75 , wc[1]), 0, vy)
+        b3 = Bullet ((wc[0] -50 , wc[1]), 0, vy)
+        b4 = Bullet ((wc[0] -25 , wc[1]), 0, vy)
+        b5 = Bullet ((wc[0]     , wc[1]), 0, vy)
+        b6 = Bullet ((wc[0] +25 , wc[1]), 0, vy)
+        b7 = Bullet ((wc[0] +50 , wc[1]), 0, vy)
+        b8 = Bullet ((wc[0] +75 , wc[1]), 0, vy)
+        b9 = Bullet ((wc[0] +100, wc[1]), 0, vy)
+        return [b1,b2,b3,b4,b5,b6,b7,b8,b9]
+
+    def triple_shoot_cone(self, camera):
+        wc = camera.c2w(self.rect.center) 
+        b1 = Bullet (wc, -5, -25)
+        b2 = Bullet (wc, 0, -25)
+        b3 = Bullet (wc, 5, -25)
         return [b1,b2,b3]
 
-    def triple_shoot(self):
-        b1 = Bullet ((self.rect.center[0] - 100, self.rect.center[1]), 0, -25)
-        b2 = Bullet ((self.rect.center[0] + 100, self.rect.center[1]), 0, -25)
-        b3 = Bullet (self.rect.center, 0, -25)
+    def triple_shoot(self, camera):
+        wc = camera.c2w(self.rect.center)
+        b1 = Bullet ((wc[0] - 100, wc[1]), 0, -25)
+        b2 = Bullet ((wc[0] + 100, wc[1]), 0, -25)
+        b3 = Bullet (wc, 0, -25)
         return [b1,b2,b3]
 
 class Enemy_Ship(pygame.sprite.Sprite):
@@ -400,7 +524,7 @@ class Enemy_Ship(pygame.sprite.Sprite):
 
         self.health = 100
 
-    def update(self, entity_mgr, game_engine):
+    def update(self, entity_mgr, game_engine, camera):
         if self.rect.right >= game_engine.screen_width:
             self.movement_direction = -1
         if self.rect.left <= 0:
@@ -447,14 +571,18 @@ class Enemy_Ship(pygame.sprite.Sprite):
     def deletion_criteria_met(self):
         return self.health <= 0
 
-    def draw(self, screen, display_hitbox):
+    def draw(self, screen, camera, display_hitbox):
+        camera.rect_w2c(self.rect)
+
         screen.blit(self.image, self.rect)
 
         if display_hitbox:
             pygame.draw.rect(screen, (255,0,0), self.rect, 1)
 
+        camera.rect_c2w(self.rect)
+        
     #Returns list of bullets
-    def shoot(self, player_ship):
+    def shoot(self, player_ship, camera):
         bullets = []
         if self.shoot_counter % self.shoot_interval == 0:
             #b = Bullet (self.rect.center, 0, 10)
@@ -465,7 +593,7 @@ class Enemy_Ship(pygame.sprite.Sprite):
             #iv.init_velocities(120)
             #bullets += [gb1, gb2]
             #bullets += rb
-            ts = self.targeted_shot(player_ship)
+            ts = self.targeted_shot(player_ship, camera)
             bullets += ts
             self.shoot_counter = 1
         else:
@@ -473,12 +601,14 @@ class Enemy_Ship(pygame.sprite.Sprite):
         
         return bullets
 
-    def targeted_shot (self, player_ship):
+    def targeted_shot (self, player_ship, camera):
+        player_wc = camera.c2w(player_ship.rect.center)
+
         velocity = 5
         x_source = self.rect.center[0]
         y_source = self.rect.center[1]
-        x_target = player_ship.rect.center[0]
-        y_target = player_ship.rect.center[1]
+        x_target = player_wc[0]
+        y_target = player_wc[1]
 
         vx = vy = 0
 
@@ -495,7 +625,11 @@ class Enemy_Ship(pygame.sprite.Sprite):
             theta = math.atan(abs(y/x))
             vx = math.cos(theta) * velocity if x > 0 else -1 * math.cos(theta) * velocity
             vy = math.sin(theta) * velocity if y > 0 else -1 * math.sin(theta) * velocity
- 
+
+        #Correct for the camera scrolling
+        vx += camera.camera_vx
+        vy += camera.camera_vy 
+
         b = Bullet(self.rect.center, vx, vy, dmg=1, player_bullet=False)
         return [b]
  
@@ -541,26 +675,22 @@ class Enemy_Ship1(Enemy_Ship):
         self.image, self.rect = mahou_utils.load_image('ship_generic2_transparent.png')
 
 class Tank1(Enemy_Ship):
-    def __init__(self, source_coords, dest_coords, shoot_interval=180):
+    def __init__(self, source_coords, dest_coords, velocity, shoot_interval):
         Enemy_Ship.__init__(self, source_coords[0], source_coords[1], shoot_interval)
 
         self.source_coords = source_coords
         self.dest_coords = dest_coords
 
-        self.base_image, self.base_rect = mahou_utils.load_image('tank1_base.png')
+        self.base_image, self.base_rect = mahou_utils.load_image('tank2_base.png')
         self.base_rect.center = source_coords
         self.base_realx = self.base_rect.center[0]
         self.base_realy = self.base_rect.center[1]
 
-        self.turret_image, self.turret_rect = mahou_utils.load_image('tank1_turret.png')
+        self.turret_image, self.turret_rect = mahou_utils.load_image('tank2_turret.png')
         self.turret_image_original = self.turret_image
         self.turret_rect.center = source_coords
         self.turret_realx = self.turret_rect.center[0]
         self.turret_realy = self.turret_rect.center[1]
-
-        self.rect = self.base_rect
-        self.hitbox = self.rect.copy()
-        self.hitbox.inflate_ip(10,10)
 
         movement_theta = mahou_utils.determine_angle(source_coords, dest_coords)
         x_diff = dest_coords[0] - source_coords[0]
@@ -569,7 +699,13 @@ class Tank1(Enemy_Ship):
                                                                     self.base_rect, \
                                                                     math.degrees(movement_theta))
 
-        self.velocity = 1
+        self.rect = self.base_rect
+        self.hitbox = self.rect.copy()
+        self.hitbox.inflate_ip(10,10)
+
+        self.health = 4
+
+        self.velocity = velocity
 
         if x_diff == 0:
             self.vx = 0
@@ -582,7 +718,7 @@ class Tank1(Enemy_Ship):
             self.vx = math.cos(theta) * self.velocity if x_diff > 0 else -1 * math.cos(theta) * self.velocity
             self.vy = math.sin(theta) * self.velocity if y_diff > 0 else -1 * math.sin(theta) * self.velocity
 
-    def update(self, entity_mgr, game_engine):
+    def update(self, entity_mgr, game_engine, camera):
         self.base_realx += self.vx
         self.base_realy += self.vy
         self.turret_realx += self.vx
@@ -593,7 +729,8 @@ class Tank1(Enemy_Ship):
         self.turret_rect.move_ip(self.turret_realx - self.turret_rect.center[0], self.turret_realy - self.turret_rect.center[1])
         self.rect = self.base_rect
 
-        turret_player_theta = mahou_utils.determine_angle(self.turret_rect.center, entity_mgr.player_ship.rect.center)
+        turret_player_theta = mahou_utils.determine_angle(self.turret_rect.center, \
+                                                          camera.c2w(entity_mgr.player_ship.rect.center))
         self.turret_image, self.turret_rect = mahou_utils.rotate_center(self.turret_image_original, \
                                                                         self.turret_rect, \
                                                                         math.degrees(turret_player_theta))
@@ -602,7 +739,7 @@ class Tank1(Enemy_Ship):
             if self.hitbox.colliderect(bullet.hitbox):
                 self.health -= bullet.damage
 
-        entity_mgr.enemy_bullet_list += self.shoot(entity_mgr.player_ship)
+        entity_mgr.enemy_bullet_list += self.shoot(entity_mgr.player_ship, camera)
 
     def deletion_criteria_met(self):
         tolerance = 1
@@ -614,12 +751,20 @@ class Tank1(Enemy_Ship):
 
         return False
 
-    def draw(self, screen, display_hitbox):
+    def draw(self, screen, camera,  display_hitbox):
+        camera.rect_w2c(self.base_rect)
+        camera.rect_w2c(self.turret_rect)
+        
         screen.blit(self.base_image, self.base_rect)
         screen.blit(self.turret_image, self.turret_rect)
             
         if display_hitbox:
+            camera.rect_w2c(self.hitbox)
             pygame.draw.rect(screen, (255,0,0), self.hitbox, 1)
+            camera.rect_c2w(self.hitbox)
+
+        camera.rect_c2w(self.base_rect)
+        camera.rect_c2w(self.turret_rect)
 
 class Bullet(pygame.sprite.Sprite):
     def __init__(self, parent_center, vx=0, vy=0, dmg=1, player_bullet=True):
@@ -650,21 +795,47 @@ class Bullet(pygame.sprite.Sprite):
 
     #Returns true if bullet should be removed from the game engine's bullet tracking lists
     #Different bullets have different deletion criteria
-    def deletion_criteria_met(self, screen_rect, opponent_ships):
+    def deletion_criteria_met(self, screen_rect, opponent_ships, entity_mgr, camera):
+        #Convert to camera coordinates, as both the player ship and the screen are in that system
+        camera.rect_w2c(self.rect)
+        camera.rect_w2c(self.hitbox)
+
         if not screen_rect.colliderect(self.rect):
+            camera.rect_c2w(self.rect)
+            camera.rect_c2w(self.hitbox)
             return True
 
         for ship in opponent_ships:
-            if ship.hitbox.colliderect(self.hitbox):
+            if ship != entity_mgr.player_ship:
+                #Convert to camera coordinates
+                camera.rect_w2c(ship.hitbox)
+                if ship.hitbox.colliderect(self.hitbox):
+                    camera.rect_c2w(self.rect)
+                    camera.rect_c2w(self.hitbox)
+                    camera.rect_c2w(ship.hitbox)
+                    return True 
+                camera.rect_c2w(ship.hitbox)
+
+            elif ship.hitbox.colliderect(self.hitbox):
+                camera.rect_c2w(self.rect)
+                camera.rect_c2w(self.hitbox)
                 return True
+
+        camera.rect_c2w(self.rect)
+        camera.rect_c2w(self.hitbox)
 
         return False
     
-    def draw(self, screen, display_hitbox):
+    def draw(self, screen, camera, display_hitbox):
+       camera.rect_w2c(self.rect)
        screen.blit(self.image, self.rect)
 
        if display_hitbox:
+           camera.rect_w2c(self.hitbox)
            pygame.draw.rect(screen, (255,0,0), self.hitbox, 1)   
+           camera.rect_c2w(self.hitbox)
+
+       camera.rect_c2w(self.rect)
 
 class Gravity_Bullet(Bullet):
     def __init__(self, parent_center, vx=0, vy=0, ax=0, ay=0, dmg=1, player_bullet=True):
