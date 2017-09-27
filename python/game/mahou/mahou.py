@@ -1,12 +1,13 @@
 #Game beginning
 
-import sys, os, pygame, math, time
+import sys, os, pygame, math, time, random
 import console as cmd_console
 import mahou_utils
 os.environ['SDL_VIDEO_CENTERED'] = '1'
 
 
 def main():
+    pygame.mixer.pre_init(44100, -16, 2, 1024)
     pygame.init()
     
     engine = Game_Engine()
@@ -15,6 +16,7 @@ def main():
     event_mgr = Event_Manager()
     event_mgr.level = 1
     camera = Camera(engine, entity_mgr)
+    sound_bank = Sound_Bank()
 
     console = cmd_console.Console(engine)
 
@@ -62,11 +64,13 @@ def main():
         
         if not engine.game_over:
             if not engine.paused or engine.paused_manual_frame_tick:
-                event_mgr.update(engine, entity_mgr)
-                entity_mgr.update(engine, camera)
+                event_mgr.update(engine, entity_mgr, sound_bank)
+                entity_mgr.update(engine, camera, sound_bank)
                 camera.update()
                 engine.paused_manual_frame_tick = False
            
+            sound_bank.update(engine)
+
             entity_mgr.draw(engine, camera)
             engine.draw(entity_mgr)
 
@@ -75,6 +79,36 @@ def main():
 
         console.draw(screen)
         pygame.display.flip()
+
+class Sound_Bank:
+    def __init__(self):
+        #Channels:
+        #    0 = Bg
+        #    1 = Player
+        pygame.mixer.set_num_channels(8)
+        gunshot1_path = os.path.join('data/', 'gunshot1.wav')
+        self.gunshot1 = pygame.mixer.Sound(gunshot1_path)
+        
+        self.bgm_interstellar_path = os.path.join('data/', 'Death M.D. - Interstellar Slide.mp3')
+
+        self.music_paused = False
+
+    def play_level1_music(self):
+        pygame.mixer.music.load(self.bgm_interstellar_path)
+        pygame.mixer.music.play(0)
+
+    def player_shoot(self):
+        player_channel1 = pygame.mixer.Channel(1)
+        player_channel1.play(self.gunshot1)
+
+    def update(self, game_engine):
+        if game_engine.paused:
+            pygame.mixer.music.pause()
+            self.music_paused = True
+        else:
+            if self.music_paused:
+                pygame.mixer.music.unpause()
+                self.music_paused = False
 
 class Camera:
     def __init__(self, engine, entity_mgr):
@@ -188,23 +222,28 @@ class Game_Engine:
             FPS = font.render('FPS: ' + str(self.get_FPS()), False, red)
             screen.blit(FPS, (self.screen_width - FPS.get_width(), 0))
  
+            time = font.render('Time: ' + str(self.total_frames_played), False, red)
+            screen.blit(time, (self.screen_width - time.get_width(), font.get_height()))
 
 class Event_Manager:
     def __init__(self):
         self.level = 0
 
-    def update(self, game_engine, entity_manager):
-        if   self.level == 1: self.update_lvl1(game_engine, entity_manager)
-        elif self.level == 2: self.update_lvl2(game_engine, entity_manager)    
+    def update(self, game_engine, entity_manager, sound_bank):
+        if   self.level == 1: self.update_lvl1(game_engine, entity_manager, sound_bank)
+        elif self.level == 2: self.update_lvl2(game_engine, entity_manager, sound_bank)    
 
-    def update_lvl1(self, engine, entity_mgr):
+    def update_lvl1(self, engine, entity_mgr, sound_bank):
         time = engine.total_frames_played
         bg = entity_mgr.background
         level_height = bg.rect.height
+        level_width = bg.rect.width
+        
+        tsi = 200
+        tv = 1
 
         if time == 1:
-            tsi = 200
-            tv = 1
+            sound_bank.play_level1_music()
             entity_mgr.create_enemy_tank1((700, level_height - 600), (-100, level_height - 400), tv, tsi)
             entity_mgr.create_enemy_tank1((700, level_height - 700), (-100, level_height - 500), tv, tsi)
             entity_mgr.create_enemy_tank1((700, level_height - 800), (-100, level_height - 600), tv, tsi)
@@ -228,13 +267,26 @@ class Event_Manager:
             entity_mgr.create_enemy_tank1((200, level_height - 600), (-600, level_height - 400), tv, tsi)
             entity_mgr.create_enemy_tank1((200, level_height - 700), (-600, level_height - 500), tv, tsi)
             entity_mgr.create_enemy_tank1((200, level_height - 800), (-600, level_height - 600), tv, tsi)
-        #if time == 180:
-        #    entity_mgr.create_enemy_ship(180, 300)
-        #    entity_mgr.create_enemy_ship(540, 300)
-        #if time == 360:
-        #    entity_mgr.create_enemy_ship(144, 300)
-        #    entity_mgr.create_enemy_ship(288, 300)
-        #    entity_mgr.create_enemy_ship(432, 300)
+        if time == 300:
+            entity_mgr.create_enemy_ship1(180, level_height - 1200)
+            entity_mgr.create_enemy_ship1(540, level_height - 1200)
+        if time == 400:
+            entity_mgr.create_enemy_ship2(360, level_height - 1400)
+            
+            entity_mgr.create_enemy_tank1((100, level_height - 1500), (100, level_height - 400), tv, tsi)
+            entity_mgr.create_enemy_tank1((100, level_height - 1600), (100, level_height - 500), tv, tsi)
+            entity_mgr.create_enemy_tank1((100, level_height - 1700), (100, level_height - 600), tv, tsi)
+            
+            entity_mgr.create_enemy_tank1((level_width - 100, level_height - 1500), \
+                                          (level_width - 100 , level_height - 400), tv, tsi)
+            entity_mgr.create_enemy_tank1((level_width - 100, level_height - 1600), \
+                                          (level_width - 100, level_height - 500), tv, tsi)
+            entity_mgr.create_enemy_tank1((level_width - 100, level_height - 1700), \
+                                          (level_width - 100, level_height - 600), tv, tsi)
+        if time == 470:
+            entity_mgr.create_enemy_ship2(360, level_height - 1500)
+        if time == 540:
+            entity_mgr.create_enemy_ship2(360, level_height - 1600)
 
     def update_lvl2(self, engine, entity_mgr):
         return
@@ -247,7 +299,7 @@ class Entity_Manager:
         self.enemy_bullet_list = []
         self.background = Background("background_concept_1.jpg", engine)
 
-        self.display_hitboxes = False
+        self.display_hitboxes = True
 
     def restart(self, engine):
         self.player_ship = Player_Ship()
@@ -261,12 +313,22 @@ class Entity_Manager:
         self.enemy_ship_list += [ship]
         return ship
 
+    def create_enemy_ship1(self, x_spawn, y_spawn):
+        ship = Enemy_Ship1(x_spawn, y_spawn)
+        self.enemy_ship_list += [ship]
+        return ship
+
+    def create_enemy_ship2(self, x_spawn, y_spawn):
+        ship = Enemy_Ship2(x_spawn, y_spawn)
+        self.enemy_ship_list += [ship]
+        return ship
+
     def create_enemy_tank1(self, source_coords, dest_coords, velocity, shoot_interval):
         tank = Tank1(source_coords, dest_coords, velocity, shoot_interval)
         self.enemy_ship_list += [tank]
         return tank
 
-    def update(self, game_engine, camera):
+    def update(self, game_engine, camera, sound_bank):
         #Update Cycle: Update bullet positions, Update Ship Positions and Apply Damage, Delete all deletion candidates
         for bullet in self.player_bullet_list:
             bullet.update()
@@ -274,7 +336,7 @@ class Entity_Manager:
             bullet.update()
         
         self.background.update()
-        self.player_ship.update(self.player_bullet_list, self.enemy_bullet_list, game_engine, self, camera)
+        self.player_ship.update(self.player_bullet_list, self.enemy_bullet_list, game_engine, self, camera, sound_bank)
         for ship in self.enemy_ship_list:
             ship.update(self, game_engine, camera)
 
@@ -334,12 +396,12 @@ class Player_Ship(pygame.sprite.Sprite):
 
         self.movement_direction = None
         self.movement_direction_diag = False #If moving diagonally, don't update direction from keydown event
-        self.movement_factor = 5
-        self.movement_factor_shooting_reduction = 2
+        self.movement_factor = 8
+        self.movement_factor_shooting_reduction = 3
 
         self.shooting = False
         self.shoot_counter = 0
-        self.shoot_interval = 8
+        self.shoot_interval = 4
 
 
         self.health = 1
@@ -381,7 +443,7 @@ class Player_Ship(pygame.sprite.Sprite):
         self.rect.move_ip(x,y)
         self.hitbox.move_ip(x,y)
 
-    def update(self, player_bullet_list, enemy_bullet_list, game_engine, entity_mgr, camera):
+    def update(self, player_bullet_list, enemy_bullet_list, game_engine, entity_mgr, camera, sound_bank):
         if self.health <= 0:
             if game_engine.player_lives > 0:
                 game_engine.player_lives -= 1
@@ -456,7 +518,7 @@ class Player_Ship(pygame.sprite.Sprite):
         camera.rect_w2c(self.hitbox)
 
         if self.shooting:
-            player_bullet_list += self.shoot(camera)
+            player_bullet_list += self.shoot(camera, sound_bank)
         else:
             self.shoot_counter = 0
 
@@ -468,10 +530,11 @@ class Player_Ship(pygame.sprite.Sprite):
             pygame.draw.rect(screen, (255,0,0), self.hitbox, 1)
 
     #Returns list of bullets
-    def shoot(self, camera):
+    def shoot(self, camera, sound_bank):
         bullets = []
         if self.shoot_counter % self.shoot_interval == 0:
             bullets += self.shoot_function(camera)
+            sound_bank.player_shoot()
         
         self.shoot_counter += 1
         return bullets
@@ -523,63 +586,76 @@ class Enemy_Ship(pygame.sprite.Sprite):
         self.shoot_interval = shoot_interval
 
         self.health = 100
+        
+        self.hitbox = self.rect.copy()
+        self.hitbox.inflate_ip(10,10)
+
+        self.player_tracking = True
 
     def update(self, entity_mgr, game_engine, camera):
+        camera.rect_w2c(self.rect)
         if self.rect.right >= game_engine.screen_width:
             self.movement_direction = -1
         if self.rect.left <= 0:
             self.movement_direction = 1
     
+        camera.rect_c2w(self.rect)
         self.rect.move_ip(self.movement_direction * self.movement_factor, 0)
-       
+        self.hitbox.move_ip(self.movement_direction * self.movement_factor, 0)
+
         #Rotate image to follow player
-        x_diff = entity_mgr.player_ship.rect.center[0] - self.rect.center[0]
-        y_diff = entity_mgr.player_ship.rect.center[1] - self.rect.center[1]
+        if self.player_tracking:
+            camera.rect_c2w(entity_mgr.player_ship.rect)
+            x_diff = entity_mgr.player_ship.rect.center[0] - self.rect.center[0]
+            y_diff = entity_mgr.player_ship.rect.center[1] - self.rect.center[1]
+            camera.rect_w2c(entity_mgr.player_ship.rect)
+            
+            theta_rot = 0
+            if x_diff == 0:
+                if y_diff >= 0:
+                    theta_rot = 0
+                else:
+                    theta_rot = 180
+            elif y_diff == 0:
+                if x_diff >= 0:
+                    theta_rot = 90
+                else:
+                    theta_rot = 270
+            elif x_diff > 0 and y_diff > 0:
+                theta_radians = math.atan(x_diff/y_diff)
+                theta_rot = math.degrees(theta_radians)
+            elif x_diff > 0 and y_diff < 0:
+                theta_radians = math.atan(abs(y_diff)/x_diff)
+                theta_rot = math.degrees(theta_radians) + 90
+            elif x_diff < 0 and y_diff < 0:
+                theta_radians = math.atan(x_diff/y_diff)
+                theta_rot = math.degrees(theta_radians) + 180
+            elif x_diff < 0 and y_diff > 0:
+                theta_radians = math.atan(y_diff/abs(x_diff))
+                theta_rot = 270 + math.degrees(theta_radians)
 
-        theta_rot = 0
-        if x_diff == 0:
-            if y_diff >= 0:
-                theta_rot = 0
-            else:
-                theta_rot = 180
-        elif y_diff == 0:
-            if x_diff >= 0:
-                theta_rot = 90
-            else:
-                theta_rot = 270
-        elif x_diff > 0 and y_diff > 0:
-            theta_radians = math.atan(x_diff/y_diff)
-            theta_rot = math.degrees(theta_radians)
-        elif x_diff > 0 and y_diff < 0:
-            theta_radians = math.atan(abs(y_diff)/x_diff)
-            theta_rot = math.degrees(theta_radians) + 90
-        elif x_diff < 0 and y_diff < 0:
-            theta_radians = math.atan(x_diff/y_diff)
-            theta_rot = math.degrees(theta_radians) + 180
-        elif x_diff < 0 and y_diff > 0:
-            theta_radians = math.atan(y_diff/abs(x_diff))
-            theta_rot = 270 + math.degrees(theta_radians)
-
-        self.image, self.rect = mahou_utils.rotate_center(self.image_original, self.rect, theta_rot)
+            self.image, self.rect = mahou_utils.rotate_center(self.image_original, self.rect, theta_rot)
 
         for bullet in entity_mgr.player_bullet_list:
             if pygame.sprite.collide_rect(bullet, self):
                 self.health -= bullet.damage
 
-        entity_mgr.enemy_bullet_list += self.shoot(entity_mgr.player_ship)
+        entity_mgr.enemy_bullet_list += self.shoot(entity_mgr.player_ship, camera)
 
     def deletion_criteria_met(self):
         return self.health <= 0
 
     def draw(self, screen, camera, display_hitbox):
         camera.rect_w2c(self.rect)
+        camera.rect_w2c(self.hitbox)
 
         screen.blit(self.image, self.rect)
 
         if display_hitbox:
-            pygame.draw.rect(screen, (255,0,0), self.rect, 1)
+            pygame.draw.rect(screen, (255,0,0), self.hitbox, 1)
 
         camera.rect_c2w(self.rect)
+        camera.rect_c2w(self.hitbox)
         
     #Returns list of bullets
     def shoot(self, player_ship, camera):
@@ -670,9 +746,59 @@ class Enemy_Ship(pygame.sprite.Sprite):
         return [b]
 
 class Enemy_Ship1(Enemy_Ship):
-    def __init__(self, x_spawn, y_spawn, shoot_interval=180):
-        Enemy_Ship.__init__(self)
-        self.image, self.rect = mahou_utils.load_image('ship_generic2_transparent.png')
+    def __init__(self, x_spawn, y_spawn):
+        Enemy_Ship.__init__(self, x_spawn, y_spawn, shoot_interval=3)
+        self.image, self.rect = mahou_utils.load_image('plane1_concept.png')
+        self.image_original = self.image
+        self.rect.center = (x_spawn, y_spawn)        
+
+
+        self.hitbox = self.rect.copy()
+        self.hitbox.inflate_ip(5,5)
+
+        self.health = 50
+        self.player_tracking = False
+
+        self.movement_direction = 0
+
+    def shoot(self, player_ship, camera):
+        bullets = []
+        if self.shoot_counter % self.shoot_interval == 0:
+            ts = self.spiral_shot(33, 2)
+            bullets += ts
+            self.shoot_counter = 1
+        else:
+            self.shoot_counter += 1
+        
+        return bullets
+
+class Enemy_Ship2(Enemy_Ship):
+    def __init__(self, x_spawn, y_spawn):
+        Enemy_Ship.__init__(self, x_spawn, y_spawn, shoot_interval=15)
+        self.image, self.rect = mahou_utils.load_image('plane2_concept.png')
+        self.image_original = self.image
+        self.rect.center = (x_spawn, y_spawn)        
+
+        self.hitbox = self.rect.copy()
+        self.hitbox.inflate_ip(5,5)
+
+        self.health = 60
+        self.player_tracking = False
+        
+        self.movement_direction = 1
+
+    def shoot(self, player_ship, camera):
+        bullets = []
+        if self.shoot_counter % self.shoot_interval == 0:
+            gb1 = Gravity_Bullet(self.rect.center, 2, -4, 0, 0.1, player_bullet=False)
+            gb2 = Gravity_Bullet(self.rect.center, -2, -4, 0, 0.1, player_bullet=False)
+            bullets += [gb1, gb2]
+            self.shoot_counter = 1
+        else:
+            self.shoot_counter += 1
+        
+        return bullets
+
 
 class Tank1(Enemy_Ship):
     def __init__(self, source_coords, dest_coords, velocity, shoot_interval):
@@ -703,9 +829,11 @@ class Tank1(Enemy_Ship):
         self.hitbox = self.rect.copy()
         self.hitbox.inflate_ip(10,10)
 
-        self.health = 4
+        self.health = 15
 
         self.velocity = velocity
+
+        self.shoot_counter = random.randint(0, self.shoot_interval)
 
         if x_diff == 0:
             self.vx = 0
@@ -849,6 +977,7 @@ class Gravity_Bullet(Bullet):
         self.realx += self.velocity_horizontal
         self.realy += self.velocity_vertical
        
+        self.hitbox.move_ip(self.realx - self.rect.x, self.realy - self.rect.y)
         self.rect.move_ip(self.realx - self.rect.x, self.realy - self.rect.y)
 
 

@@ -1,4 +1,4 @@
-import os, pygame
+import os, pygame, math
 #Lerp between two rgb 3-tuples
 # 0 <= t <= 1 
 def color_lerp(color1, color2, t):
@@ -25,6 +25,39 @@ def rotate_center(image, rect, angle):
     rect_r = image_r.get_rect(center=rect.center)
     return image_r, rect_r
 
+#Determing the counterclockwise angle of rotation required for an entity at point1
+# to face point2.
+#Assume entity is initially facing downwards
+#Returns angle in radians
+def determine_angle(point1, point2):
+        x_diff = point2[0] - point1[0]
+        y_diff = point2[1] - point1[1]
+
+        theta_rot = 0
+        if x_diff == 0:
+            if y_diff >= 0:
+                theta_rot = 0
+            else:
+                theta_rot = math.pi
+        elif y_diff == 0:
+            if x_diff >= 0:
+                theta_rot = math.pi / 2
+            else:
+                theta_rot = 3 / 2 * math.pi
+        elif x_diff > 0 and y_diff > 0:
+            theta_radians = math.atan(x_diff/y_diff)
+            theta_rot = theta_radians
+        elif x_diff > 0 and y_diff < 0:
+            theta_radians = math.atan(abs(y_diff)/x_diff)
+            theta_rot = theta_radians + math.pi / 2
+        elif x_diff < 0 and y_diff < 0:
+            theta_radians = math.atan(x_diff/y_diff)
+            theta_rot = theta_radians + math.pi
+        elif x_diff < 0 and y_diff > 0:
+            theta_radians = math.atan(y_diff/abs(x_diff))
+            theta_rot = theta_radians + 3 / 2 * math.pi
+
+        return theta_rot
 
 #Rectangle collision detection
 #Note: just for practice. In real code use pygame.sprite.collide_rect(left,right)
