@@ -20,45 +20,15 @@ def main():
 
     console = cmd_console.Console(engine)
 
+    pygame.joystick.init()
+    joystick = None
+    if pygame.joystick.get_count() == 1:
+        joystick = pygame.joystick.Joystick(0)
+        joystick.init()
+        
     while 1:
         engine.clock.tick(60)
-        magi = entity_mgr.player_ship
-       
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                sys.exit()
-            if console.open:                         #Console input processing
-                console.process_event(event, engine, entity_mgr)
-            else:                                    #Regular game input processing
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_z:
-                        magi.shooting = True    
-                    if event.key == pygame.K_r:
-                        engine.restart()
-                        entity_mgr.restart(engine)
-                        camera.restart(engine, entity_mgr)
-                    if event.key == pygame.K_p:
-                        engine.paused = not engine.paused
-                    if event.key == pygame.K_BACKQUOTE: #Enter console mode
-                        console.open = True
-                    if (event.key == pygame.K_UP or \
-                       event.key == pygame.K_RIGHT or \
-                       event.key == pygame.K_DOWN or \
-                       event.key == pygame.K_LEFT ) and \
-                       not magi.movement_direction_diag: #Do not update direction on press if already moving diagonally
-                            magi.determine_direction()
-                if event.type == pygame.KEYUP:
-                    if event.key == pygame.K_UP or \
-                       event.key == pygame.K_RIGHT or \
-                       event.key == pygame.K_DOWN or \
-                       event.key == pygame.K_LEFT:
-                            magi.determine_direction()
-                    if event.key == pygame.K_z:
-                        magi.shooting = False 
-                    if engine.paused:
-                        if event.key == pygame.K_f:
-                            engine.paused_manual_frame_tick = True
-                        
+        process_input(entity_mgr, console, engine, camera, joystick)       
         engine.update()
         console.update()
         
@@ -80,6 +50,68 @@ def main():
         console.draw(screen)
         pygame.display.flip()
 
+def global_restart(engine, entity_mgr, camera):
+    engine.restart()
+    entity_mgr.restart(engine)
+    camera.restart(engine, entity_mgr)
+
+def process_input(entity_mgr, console, engine, camera, joystick):
+    magi = entity_mgr.player_ship
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            sys.exit()
+        if console.open:                         #Console input processing
+            console.process_event(event, engine, entity_mgr)
+        else:                                    #Regular game input processing
+            if event.type == pygame.JOYHATMOTION:
+                magi.determine_direction(joystick_mode=True, joystick=joystick)
+            elif event.type == pygame.JOYBUTTONDOWN:
+                print(event.button)
+                if event.button == engine.shoot_trigger[1]:
+                    magi.shooting = True
+                elif event.button == engine.special_trigger[1]:
+                    magi.specialing = True
+                elif event.button == engine.restart_trigger[1]:
+                    global_restart(engine, entity_mgr, camera)
+                elif event.button == engine.pause_trigger[1]:
+                    engine.paused = not engine.paused
+            elif event.type == pygame.KEYDOWN:
+                if event.key == engine.shoot_trigger[0]:
+                    magi.shooting = True
+                elif event.key == engine.special_trigger[0]:
+                    magi.specialing = True
+                elif event.key == engine.restart_trigger[0]:
+                    global_restart(engine, entity_mgr, camera)
+                elif event.key == engine.pause_trigger[0]:
+                    engine.paused = not engine.paused
+                elif event.key == pygame.K_BACKQUOTE: #Enter console mode
+                    console.open = True
+                elif (event.key == pygame.K_UP or \
+                   event.key == pygame.K_RIGHT or \
+                   event.key == pygame.K_DOWN or \
+                   event.key == pygame.K_LEFT ) and \
+                   not magi.movement_direction_diag: #Do not update direction on press if already moving diagonally
+                        magi.determine_direction()
+            elif event.type == pygame.JOYBUTTONUP:
+                if event.button == engine.shoot_trigger[1]:
+                    magi.shooting = False
+                elif event.button == engine.special_trigger[1]:
+                    magi.specialing = False
+            elif event.type == pygame.KEYUP:
+                if event.key == pygame.K_UP or \
+                   event.key == pygame.K_RIGHT or \
+                   event.key == pygame.K_DOWN or \
+                   event.key == pygame.K_LEFT:
+                        magi.determine_direction()
+                if event.key == engine.shoot_trigger[0]:
+                    magi.shooting = False 
+                if event.key == engine.special_trigger[0]:
+                    magi.specialing = False 
+                if engine.paused:
+                    if event.key == pygame.K_f:
+                        engine.paused_manual_frame_tick = True
+
 class Sound_Bank:
     def __init__(self):
         #Channels:
@@ -88,6 +120,10 @@ class Sound_Bank:
         pygame.mixer.set_num_channels(8)
         gunshot1_path = os.path.join('data/', 'gunshot1.wav')
         self.gunshot1 = pygame.mixer.Sound(gunshot1_path)
+
+        
+        gunshot3_path = os.path.join('data/', 'gunshot3.wav')
+        self.gunshot3 = pygame.mixer.Sound(gunshot3_path)
         
         self.bgm_interstellar_path = os.path.join('data/', 'Death M.D. - Interstellar Slide.mp3')
 
@@ -95,11 +131,20 @@ class Sound_Bank:
 
     def play_level1_music(self):
         pygame.mixer.music.load(self.bgm_interstellar_path)
+        #!
+        pygame.mixer.music.set_volume(0.1)
         pygame.mixer.music.play(0)
 
     def player_shoot(self):
         player_channel1 = pygame.mixer.Channel(1)
+        self.gunshot1.set_volume(0.1)
         player_channel1.play(self.gunshot1)
+
+    def player_special_drill(self):
+        player_channel2 = pygame.mixer.Channel(2)
+        self.gunshot3.set_volume(0.1)
+        player_channel2.play(self.gunshot3)
+        
 
     def update(self, game_engine):
         if game_engine.paused:
@@ -173,6 +218,12 @@ class Game_Engine:
 
         self.generic_font = pygame.font.SysFont('Courier', 30)
 
+        # Function to [key, arcade stick button index] mapping
+        self.shoot_trigger   = [pygame.K_z, 0]
+        self.special_trigger = [pygame.K_x, 3]
+        self.restart_trigger = [pygame.K_r, 4]
+        self.pause_trigger   = [pygame.K_p, 5]
+
 
     def restart(self):
         self.total_frames = 0
@@ -219,6 +270,9 @@ class Game_Engine:
             player_lives = font.render("Lives: " + str(self.player_lives), False, red)
             screen.blit(player_lives, (0, font.get_height())) 
 
+            player_special = font.render("Special: " + str(entity_mgr.player_ship.special), False, red)
+            screen.blit(player_special, (0, 2 * font.get_height())) 
+            
             FPS = font.render('FPS: ' + str(self.get_FPS()), False, red)
             screen.blit(FPS, (self.screen_width - FPS.get_width(), 0))
  
@@ -267,11 +321,15 @@ class Event_Manager:
             entity_mgr.create_enemy_tank1((200, level_height - 600), (-600, level_height - 400), tv, tsi)
             entity_mgr.create_enemy_tank1((200, level_height - 700), (-600, level_height - 500), tv, tsi)
             entity_mgr.create_enemy_tank1((200, level_height - 800), (-600, level_height - 600), tv, tsi)
+            
+            #entity_mgr.create_enemy_ship3(180, level_height - 900)
+            #entity_mgr.create_enemy_ship3(540, level_height - 900)
         if time == 300:
-            entity_mgr.create_enemy_ship1(180, level_height - 1200)
-            entity_mgr.create_enemy_ship1(540, level_height - 1200)
+            pass
+            #entity_mgr.create_enemy_ship2(180, level_height - 1200)
+            #entity_mgr.create_enemy_ship2(540, level_height - 1200)
         if time == 400:
-            entity_mgr.create_enemy_ship2(360, level_height - 1400)
+            #entity_mgr.create_enemy_ship2(360, level_height - 1400)
             
             entity_mgr.create_enemy_tank1((100, level_height - 1500), (100, level_height - 400), tv, tsi)
             entity_mgr.create_enemy_tank1((100, level_height - 1600), (100, level_height - 500), tv, tsi)
@@ -283,10 +341,10 @@ class Event_Manager:
                                           (level_width - 100, level_height - 500), tv, tsi)
             entity_mgr.create_enemy_tank1((level_width - 100, level_height - 1700), \
                                           (level_width - 100, level_height - 600), tv, tsi)
-        if time == 470:
-            entity_mgr.create_enemy_ship2(360, level_height - 1500)
-        if time == 540:
-            entity_mgr.create_enemy_ship2(360, level_height - 1600)
+        #if time == 470:
+        #    entity_mgr.create_enemy_ship2(360, level_height - 1500)
+        #if time == 540:
+        #    entity_mgr.create_enemy_ship2(360, level_height - 1600)
 
     def update_lvl2(self, engine, entity_mgr):
         return
@@ -320,6 +378,11 @@ class Entity_Manager:
 
     def create_enemy_ship2(self, x_spawn, y_spawn):
         ship = Enemy_Ship2(x_spawn, y_spawn)
+        self.enemy_ship_list += [ship]
+        return ship
+
+    def create_enemy_ship3(self, x_spawn, y_spawn):
+        ship = Enemy_Ship3(x_spawn, y_spawn)
         self.enemy_ship_list += [ship]
         return ship
 
@@ -402,42 +465,70 @@ class Player_Ship(pygame.sprite.Sprite):
         self.shooting = False
         self.shoot_counter = 0
         self.shoot_interval = 4
-
+        self.shoot_function = self.shoot_br_wide
 
         self.health = 1
 
-        self.shoot_function = self.shoot_br_wide
+        self.special = 100
+        self.specialing = False
+        self.special_function = self.shoot_drill
+        self.special_counter = 0
+        self.special_interval = 10
 
-    def determine_direction(self):
-        pressed = pygame.key.get_pressed()
+    def determine_direction(self, joystick_mode=False, joystick=None):
+        if joystick_mode:
+            hat = joystick.get_hat(0)
+            if   hat == (0,0):
+                self.movement_direction = None
+                #self.direction_diag = False
+            elif hat == (0,1):
+                self.movement_direction = "UP"
+            elif hat == (0,-1):
+                self.movement_direction = "DOWN"
+            elif hat == (1,0):
+                self.movement_direction = "RIGHT"
+            elif hat == (-1,0):
+                self.movement_direction = "LEFT"
+            elif hat == (1,1):
+                self.movement_direction = "UP_RIGHT"
+            elif hat == (1,-1):
+                self.movement_direction = "DOWN_RIGHT"
+            elif hat == (-1,-1):
+                self.movement_direction = "DOWN_LEFT"
+            elif hat == (-1,1):
+                self.movement_direction = "UP_LEFT"
+            print(hat, self.movement_direction)
+ 
+        else:    
+            pressed = pygame.key.get_pressed()
 
-        if pressed[pygame.K_UP] and pressed[pygame.K_LEFT]:
-            self.movement_direction = "UP_LEFT"
-            self.direction_diag = True
-        elif pressed[pygame.K_UP] and pressed[pygame.K_RIGHT]:
-            self.movement_direction = "UP_RIGHT"
-            self.direction_diag = True
-        elif pressed[pygame.K_DOWN] and pressed[pygame.K_LEFT]:
-            self.movement_direction = "DOWN_LEFT"
-            self.direction_diag = True
-        elif pressed[pygame.K_DOWN] and pressed[pygame.K_RIGHT]:
-            self.movement_direction = "DOWN_RIGHT"
-            self.direction_diag = True
-        elif pressed[pygame.K_UP]:
-            self.movement_direction = "UP"
-            self.direction_diag = False
-        elif pressed[pygame.K_LEFT]:
-            self.movement_direction = "LEFT"
-            self.direction_diag = False
-        elif pressed[pygame.K_RIGHT]:
-            self.movement_direction = "RIGHT"
-            self.direction_diag = False
-        elif pressed[pygame.K_DOWN]:
-            self.movement_direction = "DOWN"
-            self.direction_diag = False
-        else:
-            self.movement_direction = None
-            self.direction_diag = False
+            if pressed[pygame.K_UP] and pressed[pygame.K_LEFT]:
+                self.movement_direction = "UP_LEFT"
+                self.direction_diag = True
+            elif pressed[pygame.K_UP] and pressed[pygame.K_RIGHT]:
+                self.movement_direction = "UP_RIGHT"
+                self.direction_diag = True
+            elif pressed[pygame.K_DOWN] and pressed[pygame.K_LEFT]:
+                self.movement_direction = "DOWN_LEFT"
+                self.direction_diag = True
+            elif pressed[pygame.K_DOWN] and pressed[pygame.K_RIGHT]:
+                self.movement_direction = "DOWN_RIGHT"
+                self.direction_diag = True
+            elif pressed[pygame.K_UP]:
+                self.movement_direction = "UP"
+                self.direction_diag = False
+            elif pressed[pygame.K_LEFT]:
+                self.movement_direction = "LEFT"
+                self.direction_diag = False
+            elif pressed[pygame.K_RIGHT]:
+                self.movement_direction = "RIGHT"
+                self.direction_diag = False
+            elif pressed[pygame.K_DOWN]:
+                self.movement_direction = "DOWN"
+                self.direction_diag = False
+            else:
+                self.movement_direction = None
+                self.direction_diag = False
 
     def move(self, x,y):
         self.rect.move_ip(x,y)
@@ -522,6 +613,11 @@ class Player_Ship(pygame.sprite.Sprite):
         else:
             self.shoot_counter = 0
 
+        if self.specialing:
+            player_bullet_list += self.shoot_special(camera, sound_bank)
+        else:
+            self.special_counter = 0
+
     def draw(self, screen, display_hitbox):
         #All coordinates already in camera view
         screen.blit(self.image, self.rect)
@@ -538,6 +634,24 @@ class Player_Ship(pygame.sprite.Sprite):
         
         self.shoot_counter += 1
         return bullets
+
+    def shoot_special(self, camera, sound_bank):
+        bullets = []
+        if self.special_counter % self.special_interval == 0:
+            bullets += self.special_function(camera, sound_bank)
+        
+        self.special_counter += 1
+        return bullets
+
+    def shoot_drill(self, camera, sound_bank):
+        if self.special > 0:
+            wc = camera.c2w(self.rect.center)
+            b = Bullet_Drill(wc)
+            sound_bank.player_special_drill()
+            self.special -= 2
+            return [b]
+        else:
+            return []
 
     def shoot_linear(self, camera):
         wc = camera.c2w(self.rect.center) 
@@ -637,7 +751,7 @@ class Enemy_Ship(pygame.sprite.Sprite):
             self.image, self.rect = mahou_utils.rotate_center(self.image_original, self.rect, theta_rot)
 
         for bullet in entity_mgr.player_bullet_list:
-            if pygame.sprite.collide_rect(bullet, self):
+            if self.hitbox.colliderect(bullet.hitbox):
                 self.health -= bullet.damage
 
         entity_mgr.enemy_bullet_list += self.shoot(entity_mgr.player_ship, camera)
@@ -799,6 +913,76 @@ class Enemy_Ship2(Enemy_Ship):
         
         return bullets
 
+class Enemy_Ship3(Enemy_Ship):
+    def __init__(self, x_spawn, y_spawn):
+        Enemy_Ship.__init__(self, x_spawn, y_spawn, shoot_interval=120)
+        self.image, self.rect = mahou_utils.load_image('ship_generic2_transparent.png')
+        self.image_original = self.image
+        self.rect.center = (x_spawn, y_spawn)        
+
+        self.hitbox = self.rect.copy()
+        self.hitbox.inflate_ip(5,5)
+
+        self.health = 60
+        self.player_tracking = True
+        
+        self.movement_direction = 0
+
+    def calc_velocity(self, x_source, y_source, x_target, y_target, velocity, camera):
+        vx = vy = 0
+
+        x = x_target - x_source
+        y = y_target - y_source
+
+        if x == 0:
+            vx = 0
+            vy = velocity if y > 0 else -1 * velocity
+        elif y == 0:
+            vx = velocity if x > 0 else -1 * velocity
+            vy = 0
+        else:
+            theta = math.atan(abs(y/x))
+            vx = math.cos(theta) * velocity if x > 0 else -1 * math.cos(theta) * velocity
+            vy = math.sin(theta) * velocity if y > 0 else -1 * math.sin(theta) * velocity
+
+        #Correct for the camera scrolling
+        vx += camera.camera_vx
+        vy += camera.camera_vy 
+        
+        return vx, vy
+
+    def targeted_spread_shot (self, player_ship, camera):
+        player_wc = camera.c2w(player_ship.rect.center)
+
+        velocity = 5
+        x_source = self.rect.center[0]
+        y_source = self.rect.center[1]
+        x_target = player_wc[0]
+        y_target = player_wc[1]
+
+        vx1, vy1 = self.calc_velocity(x_source - 500, y_source, x_target, y_target, velocity, camera)
+        vx2, vy2 = self.calc_velocity(x_source - 250, y_source, x_target, y_target, velocity, camera)
+        vx3, vy3 = self.calc_velocity(x_source     , y_source, x_target, y_target, velocity, camera)
+        vx4, vy4 = self.calc_velocity(x_source + 250, y_source, x_target, y_target, velocity, camera)
+        vx5, vy5 = self.calc_velocity(x_source + 500, y_source, x_target, y_target, velocity, camera)
+
+        b1 = Bullet_Pink_Cross(self.rect.center, vx1, vy1, dmg=1)
+        b2 = Bullet_Pink_Cross(self.rect.center, vx2, vy2, dmg=1)
+        b3 = Bullet_Pink_Cross(self.rect.center, vx3, vy3, dmg=1)
+        b4 = Bullet_Pink_Cross(self.rect.center, vx4, vy4, dmg=1)
+        b5 = Bullet_Pink_Cross(self.rect.center, vx5, vy5, dmg=1)
+        return [b1, b2, b3, b4, b5]
+
+    def shoot(self, player_ship, camera):
+        bullets = []
+        if self.shoot_counter % self.shoot_interval == 0:
+            bullets += self.targeted_spread_shot(player_ship, camera)
+            self.shoot_counter = 1
+        else:
+            self.shoot_counter += 1
+
+        return bullets
+        
 
 class Tank1(Enemy_Ship):
     def __init__(self, source_coords, dest_coords, velocity, shoot_interval):
@@ -965,6 +1149,46 @@ class Bullet(pygame.sprite.Sprite):
 
        camera.rect_c2w(self.rect)
 
+class Bullet_Pink_Cross(Bullet):
+    def __init__(self, parent_center, vx=0, vy=0, dmg=1):
+        pygame.sprite.Sprite.__init__(self)
+
+        img1, self.rect = mahou_utils.load_image('bullet_pink_cross0000.png')
+        img2            = mahou_utils.load_image('bullet_pink_cross0001.png')[0]
+        self.images = [img1, img2]
+        self.image = img1
+
+        self.sprite_frame_counter = 0
+        self.sprite_frame_interval = 5
+        self.sprite_frame_index = 0
+
+        self.rect.center = parent_center
+        self.velocity_vertical = vy
+        self.velocity_horizontal = vx
+
+        self.hitbox = self.rect.copy()
+        self.hitbox.inflate_ip(-10,-10)
+        
+        #Velocities will likely be fractions of pixels, so track the real x and y
+        #separately from the bullet sprite's rectangle coordinates
+        self.realx = self.rect.x
+        self.realy = self.rect.y
+
+        self.damage = dmg
+
+    def update(self):
+        #Update sprite
+        if self.sprite_frame_counter % self.sprite_frame_interval == 0:
+           self.sprite_frame_index = (self.sprite_frame_index + 1) % len(self.images)
+        self.image = self.images[self.sprite_frame_index]
+        self.sprite_frame_counter += 1
+
+        self.realx += self.velocity_horizontal
+        self.realy += self.velocity_vertical
+
+        self.hitbox.move_ip(self.realx - self.rect.x, self.realy - self.rect.y)
+        self.rect.move_ip(self.realx - self.rect.x, self.realy - self.rect.y)
+
 class Gravity_Bullet(Bullet):
     def __init__(self, parent_center, vx=0, vy=0, ax=0, ay=0, dmg=1, player_bullet=True):
         Bullet.__init__(self, parent_center, vx, vy, dmg, player_bullet)
@@ -980,7 +1204,57 @@ class Gravity_Bullet(Bullet):
         self.hitbox.move_ip(self.realx - self.rect.x, self.realy - self.rect.y)
         self.rect.move_ip(self.realx - self.rect.x, self.realy - self.rect.y)
 
+class Bullet_Drill(Gravity_Bullet):
+    def __init__(self, parent_center):
+        pygame.sprite.Sprite.__init__(self)
+        self.image, self.rect = mahou_utils.load_image('special1_concept.png')
+        self.rect.center = parent_center
+        self.velocity_vertical = -20
+        self.velocity_horizontal = random.uniform(-3, 3)
+        self.acceleration_vertical = 0.28
+        self.acceleration_horizontal = 0
 
+        self.hitbox = self.rect.copy()
+        self.hitbox.inflate_ip(20,20)
+        
+        #Velocities will likely be fractions of pixels, so track the real x and y
+        #separately from the bullet sprite's rectangle coordinates
+        self.realx = self.rect.x
+        self.realy = self.rect.y
+
+        self.damage = 60
+        
+    #Returns true if bullet should be removed from the game engine's bullet tracking lists
+    #Different bullets have different deletion criteria
+    def deletion_criteria_met(self, screen_rect, opponent_ships, entity_mgr, camera):
+        if self.velocity_vertical > 0:
+            return True
+
+        #Convert to camera coordinates, as both the player ship and the screen are in that system
+        camera.rect_w2c(self.rect)
+        camera.rect_w2c(self.hitbox)
+            
+        for ship in opponent_ships:
+            if ship != entity_mgr.player_ship:
+                #Convert to camera coordinates
+                camera.rect_w2c(ship.hitbox)
+                if ship.hitbox.colliderect(self.hitbox):
+                    camera.rect_c2w(self.rect)
+                    camera.rect_c2w(self.hitbox)
+                    camera.rect_c2w(ship.hitbox)
+                    return True 
+                camera.rect_c2w(ship.hitbox)
+
+            elif ship.hitbox.colliderect(self.hitbox):
+                camera.rect_c2w(self.rect)
+                camera.rect_c2w(self.hitbox)
+                return True
+
+        camera.rect_c2w(self.rect)
+        camera.rect_c2w(self.hitbox)
+
+        return False
+        
 #Bullets which start off screen, and terminate at a point on the screen
 class Inverse_Bullet(Gravity_Bullet):
     def __init__(self, spawn_point, terminating_point, vx=0, vy=0, ax=0, ay=0, dmg=1, player_bullet=True):
