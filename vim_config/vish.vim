@@ -1,8 +1,8 @@
 " local syntax file - set colors on a per-machine basis:
 " vim: tw=0 ts=4 sw=4
 " Vim color file
-" Maintainer:	Ron Aaron <ron@ronware.org>
-" Last Change:	2003 May 02
+" Maintainer:	Vishal Prasad
+" Last Change:	2017 October 21
 
 set background=dark
 hi clear
