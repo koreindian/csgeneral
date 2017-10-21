@@ -1,0 +1,9 @@
+set tabstop=4
+set expandtab
+set ruler
+set nocompatible
+set backspace=2
+set hlsearch
+set nu
+syntax on
+color vish
