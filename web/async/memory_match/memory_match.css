@@ -1,0 +1,12 @@
+table, td {
+    border: 3px solid black;
+}
+
+td {
+    border: 3px solid black;
+    width: 100px;
+    height: 100px;
+    text-align: center;
+    background-color: blue;
+}
+
