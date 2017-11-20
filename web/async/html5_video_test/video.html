@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Video Test</title>
+    <link rel="stylesheet" href="video.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+</head>
+<body>
+    <div id="video_player">
+        <video id="video" width="640" height="480">
+            <source src="https://mainline.i3s.unice.fr/mooc/week2p1/video1.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+        <div id="controls">
+            <button type="button" class="glyphicon glyphicon-play" id="play"></button>
+            <span id="current_time">0:00</span>
+            <input type="range" id="seek_bar" value="0">
+            <span id="run_time">0:00</span>
+            <button type="button" class="glyphicon glyphicon-volume-up" id="mute"></button>
+            <input type="range" id="volume_bar" min="0" max="1" step="0.1" value="1">
+            <button type="button" class="glyphicon glyphicon-fullscreen" id="fullscreen"></button>
+        </div>
+    </div>
+    <script src="video.js"></script>
+</body>
+</html>

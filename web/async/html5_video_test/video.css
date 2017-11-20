@@ -1,0 +1,39 @@
+#video_player {
+    font-size: 0;
+}
+
+video {
+    background-color: black;
+}
+
+#controls {
+    background-color: #81dbc7;
+    width: 640px;
+    font-size: 12px;
+    padding-bottom: 10px;
+}
+
+button {
+    border-style: none; 
+    background-color: #81dbc7;
+}
+
+#seek_bar, #volume_bar {
+    display: inline-block;
+}
+
+#run_time, #current_time {
+    margin-left: 8px;
+    margin-right: 8px;
+}
+
+#seek_bar {
+    width: 340px;
+}
+
+#volume_bar {
+    width: 100px;
+    margin-left: 8px;
+    margin-right: 8px;
+}
+
