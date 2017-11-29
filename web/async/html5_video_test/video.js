@@ -1,6 +1,9 @@
+var video = document.getElementById("video");
+
+// Wait for metadata to load, so that the video duration does not produce NaNs
+video.onloadedmetadata = init;
 
 function init() {
-    var video = document.getElementById("video");
     var seek_bar = document.getElementById("seek_bar");
     var volume_bar = document.getElementById("volume_bar");
 
@@ -98,6 +101,3 @@ function fullscreen() {
         video.webkitRequestFullscreen();
     }
 }
-
-
-init();
