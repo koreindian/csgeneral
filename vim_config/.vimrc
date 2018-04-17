@@ -12,4 +12,9 @@ set statusline=%f
 set clipboard=unnamed
 syntax on
 filetype plugin on
-color vish
+color seoul256 
+nnoremap <C-J> <C-W><C-J>
+nnoremap <C-K> <C-W><C-K>
+nnoremap <C-L> <C-W><C-L>
+nnoremap <C-H> <C-W><C-H>
+let g:netrw_liststyle=3
